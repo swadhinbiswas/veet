@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   build-release:
-    name: Build & Publish Release Binaries
+    name: Build & Publish GitHub Release
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
@@ -46,7 +46,7 @@ jobs:
           GOOS=linux GOARCH=arm GOARM=7 CGO_ENABLED=0 go build -ldflags="-s -w -X main.version=${TAG_NAME}" -o dist/veet-linux-armv7 .
           tar -czf dist/veet-${TAG_NAME}-linux-armv7.tar.gz -C dist veet-linux-armv7
 
-          # Checksums
+          # SHA256 Checksums
           cd dist
           sha256sum *.tar.gz > checksums.txt
           cat checksums.txt
@@ -58,3 +58,9 @@ jobs:
             dist/*.tar.gz
             dist/checksums.txt
           generate_release_notes: true
+
+      - name: Register on Go Package Proxy (pkg.go.dev)
+        env:
+          TAG_NAME: ${{ github.ref_name }}
+        run: |
+          curl -s "https://proxy.golang.org/github.com/swadhinbiswas/veet/@v/${TAG_NAME}.info" || true
