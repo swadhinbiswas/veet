@@ -9,8 +9,11 @@ set -e
 
 BLOCKED=0
 
+HAS_STDIN=0
+
 # Read stdin passed by git push: <local_ref> <local_sha> <remote_ref> <remote_sha>
 while read -r local_ref local_sha remote_ref remote_sha; do
+    HAS_STDIN=1
     if [ "$remote_ref" = "refs/heads/main" ] || [ "$remote_ref" = "refs/heads/master" ]; then
         BLOCKED=1
         TARGET_REF="$remote_ref"
@@ -18,11 +21,10 @@ while read -r local_ref local_sha remote_ref remote_sha; do
     fi
 done
 
-# Fallback for invocations where stdin might not provide refs
-if [ "$BLOCKED" -eq 0 ]; then
+# Fallback only if no refs were passed via stdin
+if [ "$HAS_STDIN" -eq 0 ] && [ "$BLOCKED" -eq 0 ]; then
     CURRENT_BRANCH=$(git symbolic-ref --short HEAD 2>/dev/null || echo "")
     if [ "$CURRENT_BRANCH" = "main" ] || [ "$CURRENT_BRANCH" = "master" ]; then
-        # Check if remote target is default
         BLOCKED=1
         TARGET_REF="refs/heads/$CURRENT_BRANCH"
     fi
