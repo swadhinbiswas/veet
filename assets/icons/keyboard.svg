@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="20" height="20" fill="none">
+  <defs>
+    <linearGradient id="kbGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#A855F7" />
+      <stop offset="100%" stop-color="#EC4899" />
+    </linearGradient>
+  </defs>
+  <rect x="2" y="4" width="20" height="16" rx="3" stroke="url(#kbGrad)" stroke-width="2"/>
+  <line x1="6" y1="8" x2="6.01" y2="8" stroke="url(#kbGrad)" stroke-width="2" stroke-linecap="round"/>
+  <line x1="10" y1="8" x2="10.01" y2="8" stroke="url(#kbGrad)" stroke-width="2" stroke-linecap="round"/>
+  <line x1="14" y1="8" x2="14.01" y2="8" stroke="url(#kbGrad)" stroke-width="2" stroke-linecap="round"/>
+  <line x1="18" y1="8" x2="18.01" y2="8" stroke="url(#kbGrad)" stroke-width="2" stroke-linecap="round"/>
+  <line x1="6" y1="12" x2="6.01" y2="12" stroke="url(#kbGrad)" stroke-width="2" stroke-linecap="round"/>
+  <line x1="18" y1="12" x2="18.01" y2="12" stroke="url(#kbGrad)" stroke-width="2" stroke-linecap="round"/>
+  <line x1="9" y1="16" x2="15" y2="16" stroke="url(#kbGrad)" stroke-width="2" stroke-linecap="round"/>
+</svg>

@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="20" height="20" fill="none">
+  <defs>
+    <linearGradient id="journalGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#A855F7" />
+      <stop offset="100%" stop-color="#6366F1" />
+    </linearGradient>
+  </defs>
+  <path d="M4 19.5V4.5C4 3.67 4.67 3 5.5 3H18.5C19.33 3 20 3.67 20 4.5V19.5C20 20.33 19.33 21 18.5 21H5.5C4.67 21 4 20.33 4 19.5Z" stroke="url(#journalGrad)" stroke-width="2"/>
+  <path d="M8 7H16" stroke="url(#journalGrad)" stroke-width="1.5" stroke-linecap="round"/>
+  <path d="M8 11H16" stroke="url(#journalGrad)" stroke-width="1.5" stroke-linecap="round"/>
+  <path d="M8 15H12" stroke="url(#journalGrad)" stroke-width="1.5" stroke-linecap="round"/>
+</svg>
