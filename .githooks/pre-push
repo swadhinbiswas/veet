@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+# ==============================================================================
+#  Git Pre-Push Hook
+#  Blocks direct pushes to 'main' — all changes must go through Pull Requests.
+# ==============================================================================
+
+CURRENT_BRANCH=$(git symbolic-ref --short HEAD 2>/dev/null || echo "")
+
+if [ "$CURRENT_BRANCH" = "main" ] || [ "$CURRENT_BRANCH" = "master" ]; then
+    printf "\n\033[0;31m[ERROR]\033[0m Direct push to \033[1m%s\033[0m is blocked.\n" "$CURRENT_BRANCH"
+    printf "Please create a feature branch and submit a Pull Request:\n\n"
+    printf "    git checkout -b feature/your-change\n"
+    printf "    git push origin feature/your-change\n\n"
+    exit 1
+fi
+
+exit 0
