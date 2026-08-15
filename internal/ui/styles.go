@@ -40,8 +40,8 @@ var (
 		Padding(0, 1)
 
 	HeaderMuted = lipgloss.NewStyle().
-		Foreground(mutedColor).
-		Padding(0, 1)
+			Foreground(mutedColor).
+			Padding(0, 1)
 
 	Title = lipgloss.NewStyle().Bold(true).Foreground(primary)
 
@@ -65,8 +65,8 @@ var (
 	Muted = lipgloss.NewStyle().Foreground(mutedColor)
 
 	KeyBadge = lipgloss.NewStyle().
-		Bold(true).
-		Foreground(primary)
+			Bold(true).
+			Foreground(primary)
 )
 
 // SourceBadge renders the colored source label with its icon.

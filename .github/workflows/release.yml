@@ -1,0 +1,60 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build-release:
+    name: Build & Publish Release Binaries
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+          cache: true
+
+      - name: Run Tests
+        run: go test -v ./...
+
+      - name: Compile Multi-Architecture Binaries
+        env:
+          TAG_NAME: ${{ github.ref_name }}
+        run: |
+          mkdir -p dist
+          
+          # Linux amd64 (x86_64)
+          GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="-s -w -X main.version=${TAG_NAME}" -o dist/veet-linux-amd64 .
+          tar -czf dist/veet-${TAG_NAME}-linux-amd64.tar.gz -C dist veet-linux-amd64
+          
+          # Linux arm64 (aarch64)
+          GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -ldflags="-s -w -X main.version=${TAG_NAME}" -o dist/veet-linux-arm64 .
+          tar -czf dist/veet-${TAG_NAME}-linux-arm64.tar.gz -C dist veet-linux-arm64
+          
+          # Linux armv7
+          GOOS=linux GOARCH=arm GOARM=7 CGO_ENABLED=0 go build -ldflags="-s -w -X main.version=${TAG_NAME}" -o dist/veet-linux-armv7 .
+          tar -czf dist/veet-${TAG_NAME}-linux-armv7.tar.gz -C dist veet-linux-armv7
+
+          # Checksums
+          cd dist
+          sha256sum *.tar.gz > checksums.txt
+          cat checksums.txt
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/*.tar.gz
+            dist/checksums.txt
+          generate_release_notes: true

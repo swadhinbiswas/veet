@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="20" height="20" fill="none">
+  <defs>
+    <linearGradient id="orphanGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#F59E0B" />
+      <stop offset="100%" stop-color="#EF4444" />
+    </linearGradient>
+  </defs>
+  <circle cx="18" cy="6" r="3" stroke="url(#orphanGrad)" stroke-width="2"/>
+  <circle cx="6" cy="18" r="3" stroke="url(#orphanGrad)" stroke-width="2"/>
+  <path d="M8.5 15.5L12 12" stroke="url(#orphanGrad)" stroke-width="2" stroke-linecap="round"/>
+  <path d="M15.5 8.5L14 10" stroke="url(#orphanGrad)" stroke-width="2" stroke-linecap="round" stroke-dasharray="2 2"/>
+</svg>

@@ -18,8 +18,9 @@ fmt:
 lint:
 	$(GO) vet ./...
 
-install:
-	$(GO) install .
+install: build
+	mkdir -p $(HOME)/.local/bin
+	cp -f $(BINARY_NAME) $(HOME)/.local/bin/$(BINARY_NAME)
 
 clean:
 	rm -f $(BINARY_NAME) coverage.out coverage.html
