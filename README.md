@@ -4,6 +4,7 @@
 
 <br/>
 
+[![CI](https://github.com/swadhinbiswas/veet/actions/workflows/ci.yml/badge.svg)](https://github.com/swadhinbiswas/veet/actions/workflows/ci.yml)
 [![Go Version](https://img.shields.io/badge/Go-1.22+-00ADD8?style=flat-square&logo=go)](https://go.dev)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)](LICENSE)
 [![Platform](https://img.shields.io/badge/Platform-Linux-FCC624?style=flat-square&logo=linux&logoColor=black)](#)
