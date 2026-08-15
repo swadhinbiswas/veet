@@ -1,13 +1,35 @@
 #!/usr/bin/env bash
 # ==============================================================================
 #  Git Pre-Push Hook
-#  Blocks direct pushes to 'main' — all changes must go through Pull Requests.
+#  Blocks direct pushes to remote 'main' / 'master' branches.
+#  All changes must be submitted via Pull Requests.
 # ==============================================================================
 
-CURRENT_BRANCH=$(git symbolic-ref --short HEAD 2>/dev/null || echo "")
+set -e
 
-if [ "$CURRENT_BRANCH" = "main" ] || [ "$CURRENT_BRANCH" = "master" ]; then
-    printf "\n\033[0;31m[ERROR]\033[0m Direct push to \033[1m%s\033[0m is blocked.\n" "$CURRENT_BRANCH"
+BLOCKED=0
+
+# Read stdin passed by git push: <local_ref> <local_sha> <remote_ref> <remote_sha>
+while read -r local_ref local_sha remote_ref remote_sha; do
+    if [ "$remote_ref" = "refs/heads/main" ] || [ "$remote_ref" = "refs/heads/master" ]; then
+        BLOCKED=1
+        TARGET_REF="$remote_ref"
+        break
+    fi
+done
+
+# Fallback for invocations where stdin might not provide refs
+if [ "$BLOCKED" -eq 0 ]; then
+    CURRENT_BRANCH=$(git symbolic-ref --short HEAD 2>/dev/null || echo "")
+    if [ "$CURRENT_BRANCH" = "main" ] || [ "$CURRENT_BRANCH" = "master" ]; then
+        # Check if remote target is default
+        BLOCKED=1
+        TARGET_REF="refs/heads/$CURRENT_BRANCH"
+    fi
+fi
+
+if [ "$BLOCKED" -eq 1 ]; then
+    printf "\n\033[0;31m[ERROR]\033[0m Direct push to \033[1m%s\033[0m is blocked.\n" "$TARGET_REF"
     printf "Please create a feature branch and submit a Pull Request:\n\n"
     printf "    git checkout -b feature/your-change\n"
     printf "    git push origin feature/your-change\n\n"

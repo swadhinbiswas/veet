@@ -8,10 +8,10 @@ Whether you want to add support for a new package manager, improve the TUI desig
 
 ---
 
-## 🛠️ Development Setup
+## Development Setup
 
 ### Prerequisites
-- **Go 1.22+** installed ([golang.org](https://go.dev/dl/))
+- **Go 1.24+** installed ([golang.org](https://go.dev/dl/))
 - Linux operating system (or Linux container/WSL)
 - `git` and `make` (optional)
 

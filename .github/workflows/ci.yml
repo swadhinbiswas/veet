@@ -6,6 +6,9 @@ on:
   pull_request:
     branches: [ main ]
 
+permissions:
+  contents: read
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -17,6 +20,8 @@ jobs:
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: Set up Go
         uses: actions/setup-go@v5
@@ -37,28 +42,25 @@ jobs:
         run: go vet ./...
 
   test:
-    name: Test & Coverage (${{ matrix.go-version }})
+    name: Test & Coverage
     runs-on: ubuntu-latest
     needs: lint
-    strategy:
-      fail-fast: false
-      matrix:
-        go-version: [ '1.22', '1.23', '1.24' ]
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: ${{ matrix.go-version }}
+          go-version: '1.24'
           cache: true
 
       - name: Run Unit Tests with Race Detector
         run: go test -v -race -coverprofile=coverage.txt -covermode=atomic ./...
 
       - name: Upload Coverage Artifact
-        if: matrix.go-version == '1.24'
         uses: actions/upload-artifact@v4
         with:
           name: code-coverage
@@ -74,6 +76,8 @@ jobs:
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: Set up Go
         uses: actions/setup-go@v5
@@ -97,6 +101,8 @@ jobs:
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: Set up Go
         uses: actions/setup-go@v5

@@ -5,9 +5,9 @@
 <br/>
 
 [![CI](https://github.com/swadhinbiswas/veet/actions/workflows/ci.yml/badge.svg)](https://github.com/swadhinbiswas/veet/actions/workflows/ci.yml)
-[![Go Version](https://img.shields.io/badge/Go-1.22+-00ADD8?style=flat-square&logo=go)](https://go.dev)
+[![Go Version](https://img.shields.io/badge/Go-1.24+-00ADD8?style=flat-square&logo=go)](https://go.dev)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)](LICENSE)
-[![Platform](https://img.shields.io/badge/Platform-Linux-FCC624?style=flat-square&logo=linux&logoColor=black)](#)
+[![Platform](https://img.shields.io/badge/Platform-Linux-FCC624?style=flat-square&logo=linux&logoColor=black)](#technical-overview)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg?style=flat-square)](CONTRIBUTING.md)
 
 <p align="center">
@@ -56,31 +56,31 @@ Over extended usage, unmanaged leftovers consume significant disk storage. Moder
 <table>
   <tr>
     <td width="50%" valign="top">
-      <h4><img src="assets/icons/sources.svg" width="18" height="18" align="center" /> Multi-Source Parallel Detection</h4>
+      <h4><img src="assets/icons/sources.svg" alt="" width="18" height="18" align="center" /> Multi-Source Parallel Detection</h4>
       <p>Concurrently queries system package managers (<code>pacman</code>/AUR, <code>apt</code>, <code>dnf</code>, <code>zypper</code>), sandboxed formats (<code>Flatpak</code>, <code>Snap</code>), portable bundles (<code>AppImage</code>), and language toolchains (<code>npm -g</code>, <code>pipx</code>, <code>cargo</code>, <code>gem</code>, <code>go install</code>) with zero-cost skipping for absent tools.</p>
     </td>
     <td width="50%" valign="top">
-      <h4><img src="assets/icons/purge.svg" width="18" height="18" align="center" /> Deep Residual Cleanup</h4>
+      <h4><img src="assets/icons/purge.svg" alt="" width="18" height="18" align="center" /> Deep Residual Cleanup</h4>
       <p>Automates residual discovery across user configurations, cached runtime stores, desktop integration entries, icons, and system paths, staging each candidate before disk execution.</p>
     </td>
   </tr>
   <tr>
     <td width="50%" valign="top">
-      <h4><img src="assets/icons/orphan.svg" width="18" height="18" align="center" /> Orphaned Dependency Pruning</h4>
+      <h4><img src="assets/icons/orphan.svg" alt="" width="18" height="18" align="center" /> Orphaned Dependency Pruning</h4>
       <p>Live detection of unneeded dependency packages across native package managers (<code>pacman -Qdt</code>, <code>apt autoremove</code>, <code>dnf repoquery --unneeded</code>) ready for safe reclamation.</p>
     </td>
     <td width="50%" valign="top">
-      <h4><img src="assets/icons/journal.svg" width="18" height="18" align="center" /> System Log &amp; Journal Vacuum</h4>
+      <h4><img src="assets/icons/journal.svg" alt="" width="18" height="18" align="center" /> System Log &amp; Journal Vacuum</h4>
       <p>Identifies bloated systemd journal storage (<code>/var/log/journal</code>) and rotated compressed log archives (<code>/var/log/*.gz</code>) with integrated elevated vacuum routines.</p>
     </td>
   </tr>
   <tr>
     <td width="50%" valign="top">
-      <h4><img src="assets/icons/terminal.svg" width="18" height="18" align="center" /> Interactive Navigation &amp; Telemetry</h4>
+      <h4><img src="assets/icons/terminal.svg" alt="" width="18" height="18" align="center" /> Interactive Navigation &amp; Telemetry</h4>
       <p>Instant category switching (<kbd>1</kbd>–<kbd>6</kbd>), four-mode list sorting (<kbd>o</kbd>) for rapid disk bloat identification, and in-place staged path inspection (<kbd>p</kbd>).</p>
     </td>
     <td width="50%" valign="top">
-      <h4><img src="assets/icons/security.svg" width="18" height="18" align="center" /> Sudo Batching &amp; Anti-Brick Safety</h4>
+      <h4><img src="assets/icons/security.svg" alt="" width="18" height="18" align="center" /> Sudo Batching &amp; Anti-Brick Safety</h4>
       <p>Core system components (<code>glibc</code>, <code>linux</code>, <code>systemd</code>, active shell) are protected from selection. System paths are batched into a single elevated transaction.</p>
     </td>
   </tr>
@@ -107,7 +107,7 @@ curl -sSL https://raw.githubusercontent.com/swadhinbiswas/veet/main/install.sh |
 
 ### Option 2: Go Package Manager
 
-Install directly via the standard Go toolchain (requires Go 1.22+):
+Install directly via the standard Go toolchain (requires Go 1.24+):
 
 ```bash
 go install github.com/swadhinbiswas/veet@latest
@@ -275,7 +275,7 @@ protected_packages:
 <summary><b>System Architecture &amp; Module Map</b></summary>
 <br/>
 
-```
+```text
 veet/
 ├── main.go               # Cobra CLI entrypoint (scan, clean, tui)
 ├── internal/
@@ -296,10 +296,24 @@ veet/
 
 ## Uninstallation
 
-To remove the compiled binary, shell autocompletions, and optionally purge audit logs:
-
+### From Cloned Source Repository
 ```bash
 ./uninstall.sh
+```
+
+### Manual Removal (Binary & Shell Completions)
+If installed via `go install` or direct binary download:
+```bash
+# Remove executable binary
+rm -f ~/.local/bin/veet
+
+# Remove shell autocompletions
+rm -f ~/.local/share/bash-completion/completions/veet
+rm -f ~/.local/share/zsh/site-functions/_veet
+rm -f ~/.config/fish/completions/veet.fish
+
+# Optionally remove audit logs and configurations
+rm -rf ~/.local/share/veet ~/.config/veet
 ```
 
 ---

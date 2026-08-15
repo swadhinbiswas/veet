@@ -17,6 +17,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Set up Go
         uses: actions/setup-go@v5
@@ -28,9 +29,10 @@ jobs:
         run: go test -v ./...
 
       - name: Compile Multi-Architecture Binaries
+        env:
+          TAG_NAME: ${{ github.ref_name }}
         run: |
           mkdir -p dist
-          TAG_NAME="${{ github.ref_name }}"
           
           # Linux amd64 (x86_64)
           GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="-s -w -X main.version=${TAG_NAME}" -o dist/veet-linux-amd64 .

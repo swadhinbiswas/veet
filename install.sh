@@ -39,7 +39,7 @@ elif [ -x "/usr/local/go/bin/go" ]; then
 fi
 
 if [ -z "$GO_CMD" ]; then
-    printf "${RED}✗ Error:${NC} Go compiler (Go 1.22+) not found.\n"
+    printf "${RED}✗ Error:${NC} Go compiler (Go 1.24+) not found.\n"
     printf "Please install Go from ${CYAN}https://go.dev/dl/${NC} and run this installer again.\n\n"
     exit 1
 fi
