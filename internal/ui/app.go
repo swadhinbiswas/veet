@@ -888,7 +888,7 @@ func (m *Model) renderMain() string {
 	if innerTableH < 3 {
 		innerTableH = 3
 	}
-	tableW := (w * 3) / 5 - 2
+	tableW := (w*3)/5 - 2
 	detailW := w - tableW - 3
 	if detailW < 36 {
 		detailW = 36
@@ -905,7 +905,7 @@ func (m *Model) renderMain() string {
 	b.WriteString("\n")
 
 	// bottom split: progress/activity | quick actions
-	leftW := (w * 3) / 5 - 2
+	leftW := (w*3)/5 - 2
 	rightW := w - leftW - 3
 	var bottom string
 	if m.progress.Running() {
