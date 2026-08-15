@@ -1,0 +1,348 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 630" width="1000" height="630">
+  <defs>
+    <!-- Background Gradient -->
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#090D16" />
+      <stop offset="50%" stop-color="#0F172A" />
+      <stop offset="100%" stop-color="#0A0F1D" />
+    </linearGradient>
+
+    <!-- Terminal Glow -->
+    <filter id="terminalShadow" x="-5%" y="-5%" width="110%" height="110%" filterUnits="userSpaceOnUse">
+      <feGaussianBlur stdDeviation="16" result="blur" />
+      <feComponentTransfer in="blur" result="glow1">
+        <feFuncA type="linear" slope="0.45" />
+      </feComponentTransfer>
+      <feMerge>
+        <feMergeNode in="glow1" />
+        <feMergeNode in="SourceGraphic" />
+      </feMerge>
+    </filter>
+
+    <!-- Row Selection Highlight Gradient -->
+    <linearGradient id="selRowGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#1E3A8A" stop-opacity="0.9" />
+      <stop offset="100%" stop-color="#1E3A8A" stop-opacity="0.4" />
+    </linearGradient>
+
+    <style>
+      .mono { font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', 'SF Mono', Consolas, Menlo, Monaco, monospace; }
+      .sans { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; }
+      .bold { font-weight: 700; }
+      .semibold { font-weight: 600; }
+      .dim { fill: #64748B; }
+      .muted { fill: #94A3B8; }
+      .text { fill: #F1F5F9; }
+      .cyan { fill: #00E5FF; }
+      .blue { fill: #38BDF8; }
+      .green { fill: #10B981; }
+      .yellow { fill: #FACC15; }
+      .amber { fill: #F59E0B; }
+      .purple { fill: #A855F7; }
+      .red { fill: #F43F5E; }
+    </style>
+  </defs>
+
+  <!-- Ambient Backdrop -->
+  <rect width="1000" height="630" rx="16" fill="url(#bgGrad)" />
+
+  <!-- Outer Window Frame -->
+  <g filter="url(#terminalShadow)">
+    <rect x="25" y="20" width="950" height="590" rx="10" fill="#0B0F19" stroke="#1E293B" stroke-width="1.5" />
+  </g>
+
+  <!-- Window Title Bar -->
+  <rect x="25" y="20" width="950" height="36" rx="10" fill="#0F172A" />
+  <rect x="25" y="46" width="950" height="10" fill="#0F172A" />
+  <line x1="25" y1="56" x2="975" y2="56" stroke="#1E293B" stroke-width="1" />
+
+  <!-- Window Dots -->
+  <circle cx="48" cy="38" r="6" fill="#F43F5E" />
+  <circle cx="68" cy="38" r="6" fill="#FACC15" />
+  <circle cx="88" cy="38" r="6" fill="#10B981" />
+
+  <!-- Window Title -->
+  <text x="500" y="42" text-anchor="middle" class="sans semibold" font-size="12" fill="#94A3B8">veet — universal linux app uninstaller</text>
+
+  <!-- ==================== HEADER ROW ==================== -->
+  <g transform="translate(45, 80)">
+    <text x="0" y="0" class="mono bold" font-size="16" fill="#00E5FF">VEET</text>
+    <text x="55" y="0" class="mono" font-size="13" fill="#64748B">Universal Linux App Uninstaller</text>
+    <text x="590" y="0" class="mono bold" font-size="13" fill="#FACC15">💾 84.2GB / 476.8GB (18%)</text>
+    <text x="855" y="0" class="mono bold" font-size="13" fill="#00E5FF">15:04:05</text>
+  </g>
+
+  <!-- ==================== STAT CARDS ==================== -->
+  <!-- Card 1 (Active) -->
+  <g transform="translate(45, 96)">
+    <rect width="145" height="52" rx="6" fill="#0B132B" stroke="#00E5FF" stroke-width="1.5" />
+    <text x="12" y="24" class="mono bold" font-size="14" fill="#00E5FF">▣ 412</text>
+    <text x="12" y="42" class="mono bold" font-size="11" fill="#00E5FF">● 1: All Apps</text>
+  </g>
+
+  <!-- Card 2 -->
+  <g transform="translate(198, 96)">
+    <rect width="145" height="52" rx="6" fill="#0D1527" stroke="#334155" stroke-width="1" />
+    <text x="12" y="24" class="mono bold" font-size="14" fill="#06B6D4">◆ 8</text>
+    <text x="12" y="42" class="mono" font-size="11" fill="#94A3B8">2: Flatpak</text>
+  </g>
+
+  <!-- Card 3 -->
+  <g transform="translate(351, 96)">
+    <rect width="145" height="52" rx="6" fill="#0D1527" stroke="#334155" stroke-width="1" />
+    <text x="12" y="24" class="mono bold" font-size="14" fill="#F43F5E">▦ 2</text>
+    <text x="12" y="42" class="mono" font-size="11" fill="#94A3B8">3: Snap</text>
+  </g>
+
+  <!-- Card 4 -->
+  <g transform="translate(504, 96)">
+    <rect width="145" height="52" rx="6" fill="#0D1527" stroke="#334155" stroke-width="1" />
+    <text x="12" y="24" class="mono bold" font-size="14" fill="#A855F7">⚒ 14</text>
+    <text x="12" y="42" class="mono" font-size="11" fill="#94A3B8">4: Tools</text>
+  </g>
+
+  <!-- Card 5 -->
+  <g transform="translate(657, 96)">
+    <rect width="145" height="52" rx="6" fill="#0D1527" stroke="#334155" stroke-width="1" />
+    <text x="12" y="24" class="mono bold" font-size="14" fill="#FACC15">🧹 4.2GB</text>
+    <text x="12" y="42" class="mono" font-size="11" fill="#94A3B8">5: Cache</text>
+  </g>
+
+  <!-- Card 6 -->
+  <g transform="translate(810, 96)">
+    <rect width="145" height="52" rx="6" fill="#0D1527" stroke="#334155" stroke-width="1" />
+    <text x="12" y="24" class="mono bold" font-size="14" fill="#10B981">♻ 6.8GB</text>
+    <text x="12" y="42" class="mono" font-size="11" fill="#94A3B8">6: Reclaim</text>
+  </g>
+
+  <!-- ==================== SEARCH BAR ==================== -->
+  <g transform="translate(45, 168)">
+    <text x="0" y="0" class="mono" font-size="12" fill="#64748B">Search: </text>
+    <text x="60" y="0" class="mono" font-size="12" fill="#94A3B8">(press / to search)</text>
+    
+    <rect x="250" y="-12" width="125" height="18" rx="4" fill="#1E293B" />
+    <text x="258" y="1" class="mono bold" font-size="11" fill="#00E5FF">[All Sources ▾]</text>
+    <text x="382" y="0" class="mono" font-size="11" fill="#64748B">(Tab)</text>
+
+    <rect x="435" y="-12" width="95" height="18" rx="4" fill="#1E293B" />
+    <text x="443" y="1" class="mono bold" font-size="11" fill="#FACC15">Sort: [Size ↓]</text>
+    <text x="536" y="0" class="mono" font-size="11" fill="#64748B">(o)</text>
+
+    <text x="620" y="0" class="mono" font-size="11" fill="#64748B">1-6: cards | p: paths | e: export</text>
+  </g>
+
+  <!-- ==================== MIDDLE SECTION ==================== -->
+  <!-- TABLE PANEL (LEFT) -->
+  <g transform="translate(45, 185)">
+    <rect width="550" height="235" rx="6" fill="#090E1A" stroke="#00E5FF" stroke-width="1.5" />
+    
+    <!-- Table Header -->
+    <rect x="1" y="1" width="548" height="26" fill="#0F172A" />
+    <text x="14" y="18" class="mono bold" font-size="11" fill="#64748B">SEL</text>
+    <text x="55" y="18" class="mono bold" font-size="11" fill="#64748B">APP / PACKAGE</text>
+    <text x="250" y="18" class="mono bold" font-size="11" fill="#64748B">VERSION</text>
+    <text x="345" y="18" class="mono bold" font-size="11" fill="#64748B">SOURCE</text>
+    <text x="420" y="18" class="mono bold" font-size="11" fill="#64748B">INSTALLED</text>
+    <text x="495" y="18" class="mono bold" font-size="11" fill="#64748B">SIZE</text>
+    <line x1="0" y1="27" x2="550" y2="27" stroke="#1E293B" stroke-width="1" />
+
+    <!-- Row 1 (Selected & Active Cursor) -->
+    <rect x="2" y="28" width="546" height="28" fill="url(#selRowGrad)" />
+    <text x="14" y="47" class="mono bold" font-size="12" fill="#00E5FF">[✓]</text>
+    <text x="55" y="47" class="mono bold" font-size="12" fill="#FFFFFF">texlive-fontsextra</text>
+    <text x="250" y="47" class="mono" font-size="11" fill="#E2E8F0">2026.1-1</text>
+    <rect x="343" y="34" width="56" height="16" rx="3" fill="#003B46" />
+    <text x="348" y="46" class="mono bold" font-size="10" fill="#00E5FF">pacman</text>
+    <text x="420" y="47" class="mono" font-size="11" fill="#94A3B8">2026-08-10</text>
+    <text x="495" y="47" class="mono bold" font-size="12" fill="#FACC15">1.8GB</text>
+
+    <!-- Row 2 (Checked) -->
+    <text x="14" y="75" class="mono bold" font-size="12" fill="#10B981">[✓]</text>
+    <text x="55" y="75" class="mono bold" font-size="12" fill="#F1F5F9">wps-office</text>
+    <text x="250" y="75" class="mono" font-size="11" fill="#94A3B8">11.1.0-2</text>
+    <rect x="343" y="62" width="56" height="16" rx="3" fill="#003B46" />
+    <text x="348" y="74" class="mono bold" font-size="10" fill="#00E5FF">pacman</text>
+    <text x="420" y="75" class="mono" font-size="11" fill="#64748B">2026-08-12</text>
+    <text x="495" y="75" class="mono bold" font-size="12" fill="#FACC15">1.3GB</text>
+
+    <!-- Row 3 -->
+    <text x="14" y="103" class="mono" font-size="12" fill="#64748B">[ ]</text>
+    <text x="55" y="103" class="mono" font-size="12" fill="#F1F5F9">obsidian</text>
+    <text x="250" y="103" class="mono" font-size="11" fill="#94A3B8">1.13.7-1</text>
+    <rect x="343" y="90" width="56" height="16" rx="3" fill="#083344" />
+    <text x="348" y="102" class="mono bold" font-size="10" fill="#06B6D4">flatpak</text>
+    <text x="420" y="103" class="mono" font-size="11" fill="#64748B">2026-08-14</text>
+    <text x="495" y="103" class="mono bold" font-size="12" fill="#FACC15">845MB</text>
+
+    <!-- Row 4 -->
+    <text x="14" y="131" class="mono" font-size="12" fill="#64748B">[ ]</text>
+    <text x="55" y="131" class="mono" font-size="12" fill="#F1F5F9">telegram-desktop</text>
+    <text x="250" y="131" class="mono" font-size="11" fill="#94A3B8">7.0.9-2.1</text>
+    <rect x="343" y="118" width="56" height="16" rx="3" fill="#003B46" />
+    <text x="348" y="130" class="mono bold" font-size="10" fill="#00E5FF">pacman</text>
+    <text x="420" y="131" class="mono" font-size="11" fill="#64748B">2026-08-15</text>
+    <text x="495" y="131" class="mono bold" font-size="12" fill="#FACC15">144.8MB</text>
+
+    <!-- Row 5 -->
+    <text x="14" y="159" class="mono" font-size="12" fill="#64748B">[ ]</text>
+    <text x="55" y="159" class="mono" font-size="12" fill="#F1F5F9">discord</text>
+    <text x="250" y="159" class="mono" font-size="11" fill="#94A3B8">0.0.91-1</text>
+    <rect x="343" y="146" width="56" height="16" rx="3" fill="#4C0519" />
+    <text x="353" y="158" class="mono bold" font-size="10" fill="#F43F5E">snap</text>
+    <text x="420" y="159" class="mono" font-size="11" fill="#64748B">2026-08-15</text>
+    <text x="495" y="159" class="mono bold" font-size="12" fill="#FACC15">128.4MB</text>
+
+    <!-- Row 6 -->
+    <text x="14" y="187" class="mono" font-size="12" fill="#64748B">[ ]</text>
+    <text x="55" y="187" class="mono" font-size="12" fill="#F1F5F9">xwayland-satellite</text>
+    <text x="250" y="187" class="mono" font-size="11" fill="#94A3B8">0.8.2-1</text>
+    <rect x="343" y="174" width="56" height="16" rx="3" fill="#451A03" />
+    <text x="350" y="186" class="mono bold" font-size="10" fill="#F59E0B">orphan</text>
+    <text x="420" y="187" class="mono" font-size="11" fill="#64748B">2026-08-16</text>
+    <text x="495" y="187" class="mono bold" font-size="12" fill="#FACC15">9.6MB</text>
+
+    <!-- Row 7 -->
+    <text x="14" y="215" class="mono" font-size="12" fill="#64748B">[ ]</text>
+    <text x="55" y="215" class="mono" font-size="12" fill="#F1F5F9">systemd-journal-logs</text>
+    <text x="250" y="215" class="mono" font-size="11" fill="#64748B">-</text>
+    <rect x="343" y="202" width="56" height="16" rx="3" fill="#2E1065" />
+    <text x="349" y="214" class="mono bold" font-size="10" fill="#A78BFA">system</text>
+    <text x="420" y="215" class="mono" font-size="11" fill="#64748B">2026-08-16</text>
+    <text x="495" y="215" class="mono bold" font-size="12" fill="#FACC15">106.2MB</text>
+  </g>
+
+  <!-- DETAILS PANEL (RIGHT) -->
+  <g transform="translate(605, 185)">
+    <rect width="350" height="235" rx="6" fill="#090E1A" stroke="#334155" stroke-width="1" />
+    
+    <text x="16" y="28" class="mono bold" font-size="15" fill="#00E5FF">texlive-fontsextra</text>
+    <text x="180" y="28" class="mono" font-size="12" fill="#64748B">v2026.1-1</text>
+    
+    <rect x="16" y="38" width="56" height="16" rx="3" fill="#003B46" />
+    <text x="21" y="50" class="mono bold" font-size="10" fill="#00E5FF">pacman</text>
+    
+    <text x="16" y="76" class="mono" font-size="11" fill="#64748B">installed</text>
+    <text x="110" y="76" class="mono" font-size="11" fill="#38BDF8">2026-08-10 01:23</text>
+    
+    <text x="16" y="94" class="mono" font-size="11" fill="#64748B">install size</text>
+    <text x="110" y="94" class="mono bold" font-size="11" fill="#FACC15">1.8GB</text>
+
+    <text x="16" y="112" class="mono" font-size="11" fill="#64748B">homepage</text>
+    <text x="110" y="112" class="mono" font-size="11" fill="#38BDF8">tug.org/texlive</text>
+
+    <line x1="16" y1="124" x2="334" y2="124" stroke="#1E293B" stroke-width="1" />
+
+    <text x="16" y="142" class="mono bold" font-size="11" fill="#FACC15">WILL BE REMOVED (p):</text>
+    
+    <text x="16" y="160" class="mono" font-size="11" fill="#94A3B8">• package binary</text>
+    <text x="270" y="160" class="mono bold" font-size="11" fill="#E2E8F0">1.8GB</text>
+
+    <text x="16" y="176" class="mono" font-size="11" fill="#94A3B8">• ~/.cache/texlive</text>
+    <text x="270" y="176" class="mono bold" font-size="11" fill="#E2E8F0">48.2MB</text>
+
+    <text x="16" y="192" class="mono" font-size="11" fill="#94A3B8">• ~/.config/texlive</text>
+    <text x="270" y="192" class="mono bold" font-size="11" fill="#E2E8F0">1.4MB</text>
+
+    <rect x="16" y="202" width="318" height="22" rx="4" fill="#132338" />
+    <text x="24" y="217" class="mono bold" font-size="11" fill="#10B981">Total Reclaimable: 1.85GB across 3 paths</text>
+  </g>
+
+  <!-- ==================== BOTTOM SECTION ==================== -->
+  <!-- Progress / Activity (Bottom Left) -->
+  <g transform="translate(45, 430)">
+    <rect width="550" height="105" rx="6" fill="#090E1A" stroke="#334155" stroke-width="1" />
+    <text x="16" y="22" class="mono bold" font-size="12" fill="#FACC15">PROGRESS &amp; ACTIVITY</text>
+    <text x="16" y="42" class="mono" font-size="11" fill="#38BDF8">● System Ready — Space to select, Enter to preview</text>
+    <text x="16" y="60" class="mono" font-size="11" fill="#64748B">Recent:</text>
+    <text x="24" y="78" class="mono" font-size="11" fill="#94A3B8">• found 412 apps across 7 sources</text>
+    <text x="24" y="94" class="mono" font-size="11" fill="#94A3B8">• scanned 1 orphan package, 2 system log groups</text>
+  </g>
+
+  <!-- Quick Actions (Bottom Right) -->
+  <g transform="translate(605, 430)">
+    <rect width="350" height="105" rx="6" fill="#090E1A" stroke="#334155" stroke-width="1" />
+    <text x="16" y="22" class="mono bold" font-size="12" fill="#FACC15">QUICK ACTIONS</text>
+    
+    <!-- Row 1 -->
+    <rect x="16" y="32" width="36" height="15" rx="3" fill="#1E293B" />
+    <text x="20" y="43" class="mono bold" font-size="10" fill="#00E5FF">[1-6]</text>
+    <text x="58" y="44" class="mono" font-size="11" fill="#94A3B8">Cards</text>
+
+    <rect x="175" y="32" width="24" height="15" rx="3" fill="#1E293B" />
+    <text x="180" y="43" class="mono bold" font-size="10" fill="#00E5FF">[o]</text>
+    <text x="205" y="44" class="mono" font-size="11" fill="#94A3B8">Sort</text>
+
+    <!-- Row 2 -->
+    <rect x="16" y="52" width="24" height="15" rx="3" fill="#1E293B" />
+    <text x="21" y="63" class="mono bold" font-size="10" fill="#00E5FF">[p]</text>
+    <text x="46" y="64" class="mono" font-size="11" fill="#94A3B8">Paths</text>
+
+    <rect x="175" y="52" width="24" height="15" rx="3" fill="#1E293B" />
+    <text x="180" y="63" class="mono bold" font-size="10" fill="#00E5FF">[c]</text>
+    <text x="205" y="64" class="mono" font-size="11" fill="#94A3B8">Clean Cache</text>
+
+    <!-- Row 3 -->
+    <rect x="16" y="72" width="24" height="15" rx="3" fill="#1E293B" />
+    <text x="21" y="83" class="mono bold" font-size="10" fill="#00E5FF">[e]</text>
+    <text x="46" y="84" class="mono" font-size="11" fill="#94A3B8">Export</text>
+
+    <rect x="175" y="72" width="24" height="15" rx="3" fill="#1E293B" />
+    <text x="180" y="83" class="mono bold" font-size="10" fill="#00E5FF">[r]</text>
+    <text x="205" y="84" class="mono" font-size="11" fill="#94A3B8">Rescan</text>
+
+    <!-- Sub text -->
+    <text x="16" y="99" class="mono" font-size="10" fill="#64748B">[h/?] Help    [q] Quit</text>
+  </g>
+
+  <!-- ==================== SUMMARY & KEYBINDINGS FOOTER ==================== -->
+  <g transform="translate(45, 555)">
+    <text x="0" y="0" class="mono bold" font-size="12" fill="#FACC15">2 selected</text>
+    <text x="80" y="0" class="mono" font-size="12" fill="#64748B">Total: </text>
+    <text x="125" y="0" class="mono bold" font-size="12" fill="#38BDF8">3.1GB</text>
+    <text x="175" y="0" class="mono" font-size="12" fill="#64748B">Reclaimable: </text>
+    <text x="260" y="0" class="mono bold" font-size="12" fill="#10B981">3.15GB</text>
+  </g>
+
+  <!-- Keybinds Bar -->
+  <g transform="translate(45, 580)">
+    <rect width="910" height="20" rx="4" fill="#0F172A" />
+    <text x="10" y="14" class="mono" font-size="10" fill="#00E5FF">[1-6]</text>
+    <text x="40" y="14" class="mono" font-size="10" fill="#94A3B8">Cards</text>
+
+    <text x="85" y="14" class="mono" font-size="10" fill="#00E5FF">[↑↓/jk]</text>
+    <text x="128" y="14" class="mono" font-size="10" fill="#94A3B8">Nav</text>
+
+    <text x="160" y="14" class="mono" font-size="10" fill="#00E5FF">[Space]</text>
+    <text x="205" y="14" class="mono" font-size="10" fill="#94A3B8">Sel</text>
+
+    <text x="235" y="14" class="mono" font-size="10" fill="#00E5FF">[Enter]</text>
+    <text x="280" y="14" class="mono" font-size="10" fill="#94A3B8">Action</text>
+
+    <text x="325" y="14" class="mono" font-size="10" fill="#00E5FF">[o]</text>
+    <text x="345" y="14" class="mono" font-size="10" fill="#94A3B8">Sort</text>
+
+    <text x="380" y="14" class="mono" font-size="10" fill="#00E5FF">[p]</text>
+    <text x="400" y="14" class="mono" font-size="10" fill="#94A3B8">Paths</text>
+
+    <text x="440" y="14" class="mono" font-size="10" fill="#00E5FF">[Tab]</text>
+    <text x="475" y="14" class="mono" font-size="10" fill="#94A3B8">Source</text>
+
+    <text x="525" y="14" class="mono" font-size="10" fill="#00E5FF">[/]</text>
+    <text x="545" y="14" class="mono" font-size="10" fill="#94A3B8">Search</text>
+
+    <text x="595" y="14" class="mono" font-size="10" fill="#00E5FF">[c]</text>
+    <text x="615" y="14" class="mono" font-size="10" fill="#94A3B8">Clean</text>
+
+    <text x="655" y="14" class="mono" font-size="10" fill="#00E5FF">[e]</text>
+    <text x="675" y="14" class="mono" font-size="10" fill="#94A3B8">Export</text>
+
+    <text x="720" y="14" class="mono" font-size="10" fill="#00E5FF">[l]</text>
+    <text x="740" y="14" class="mono" font-size="10" fill="#94A3B8">Logs</text>
+
+    <text x="775" y="14" class="mono" font-size="10" fill="#00E5FF">[h]</text>
+    <text x="795" y="14" class="mono" font-size="10" fill="#94A3B8">Help</text>
+
+    <text x="830" y="14" class="mono" font-size="10" fill="#00E5FF">[q]</text>
+    <text x="850" y="14" class="mono" font-size="10" fill="#94A3B8">Quit</text>
+  </g>
+</svg>

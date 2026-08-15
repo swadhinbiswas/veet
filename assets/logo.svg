@@ -1,0 +1,110 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 240" width="800" height="240">
+  <defs>
+    <!-- Brand Gradients -->
+    <linearGradient id="vGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#00F0FF" />
+      <stop offset="50%" stop-color="#3B82F6" />
+      <stop offset="100%" stop-color="#8B5CF6" />
+    </linearGradient>
+
+    <linearGradient id="glowGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#00F0FF" stop-opacity="0.8" />
+      <stop offset="100%" stop-color="#8B5CF6" stop-opacity="0.2" />
+    </linearGradient>
+
+    <linearGradient id="accentGrad" x1="0%" y1="100%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#38BDF8" />
+      <stop offset="100%" stop-color="#00F0FF" />
+    </linearGradient>
+
+    <linearGradient id="textGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#FFFFFF" />
+      <stop offset="100%" stop-color="#F1F5F9" />
+    </linearGradient>
+
+    <!-- Outer Ambient Glow Filter -->
+    <filter id="neonGlow" x="-20%" y="-20%" width="140%" height="140%" filterUnits="userSpaceOnUse">
+      <feGaussianBlur stdDeviation="10" result="coloredBlur"/>
+      <feMerge>
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+
+    <!-- Subtle Drop Shadow -->
+    <filter id="dropShadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="#000000" flood-opacity="0.5"/>
+    </filter>
+
+    <style>
+      @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600;700;800&amp;family=JetBrains+Mono:wght@500;700&amp;display=swap');
+      .brand-title {
+        font-family: 'Space Grotesk', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        font-weight: 800;
+        letter-spacing: 0.12em;
+      }
+      .brand-sub {
+        font-family: 'JetBrains Mono', 'SF Mono', Consolas, monospace;
+        font-weight: 600;
+        letter-spacing: 0.18em;
+      }
+      .tagline {
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        font-weight: 500;
+        letter-spacing: 0.04em;
+      }
+    </style>
+  </defs>
+
+  <!-- ==================== EMBLEM (LEFT) ==================== -->
+  <g transform="translate(40, 20)">
+    <!-- Ambient Backlight Circle -->
+    <circle cx="100" cy="100" r="75" fill="#00E5FF" opacity="0.08" filter="url(#neonGlow)"/>
+
+    <!-- Outer Hexagonal / Rounded Shield Container -->
+    <rect x="25" y="25" width="150" height="150" rx="36" fill="#0F172A" stroke="#1E293B" stroke-width="2" filter="url(#dropShadow)" />
+    <rect x="25" y="25" width="150" height="150" rx="36" fill="none" stroke="url(#glowGrad)" stroke-width="1.5" opacity="0.6"/>
+
+    <!-- Inner Clean Grid Lines Pattern -->
+    <path d="M 45 100 L 155 100" stroke="#1E293B" stroke-width="1" stroke-dasharray="4 4" opacity="0.5"/>
+    <path d="M 100 45 L 100 155" stroke="#1E293B" stroke-width="1" stroke-dasharray="4 4" opacity="0.5"/>
+
+    <!-- The Geometric "V" + Sweep Wing Emblem -->
+    <!-- Left Wing of V -->
+    <path d="M 52 58 L 84 58 L 100 125 L 84 146 L 52 58 Z" fill="url(#accentGrad)" filter="url(#neonGlow)"/>
+    
+    <!-- Right Wing of V (Deep Blade / Sweep) -->
+    <path d="M 148 58 L 116 58 L 86 142 L 102 142 L 148 58 Z" fill="url(#vGrad)" filter="url(#neonGlow)"/>
+
+    <!-- Center Energy Core / Sweep Sparkle -->
+    <polygon points="100,50 105,68 123,73 105,78 100,96 95,78 77,73 95,68" fill="#00F0FF" opacity="0.9" filter="url(#neonGlow)"/>
+
+    <!-- Bottom Precision Point Node -->
+    <circle cx="100" cy="142" r="3.5" fill="#FFFFFF"/>
+  </g>
+
+  <!-- ==================== TYPOGRAPHY (RIGHT) ==================== -->
+  <g transform="translate(260, 45)">
+    <!-- Main Logotype: VEET -->
+    <text x="0" y="72" class="brand-title" font-size="76" fill="url(#textGrad)" filter="url(#dropShadow)">VEET</text>
+
+    <!-- Glowing Dot on T -->
+    <circle cx="218" cy="22" r="4.5" fill="#00F0FF" filter="url(#neonGlow)"/>
+
+    <!-- Subtitle Pill / Version Badge -->
+    <g transform="translate(0, 95)">
+      <rect x="0" y="0" width="370" height="26" rx="6" fill="#0F172A" stroke="#1E293B" stroke-width="1"/>
+      <rect x="0" y="0" width="370" height="26" rx="6" fill="none" stroke="#00E5FF" stroke-width="1" opacity="0.3"/>
+      
+      <!-- Mini Terminal Spark Indicator -->
+      <circle cx="14" cy="13" r="3.5" fill="#10B981"/>
+      <text x="26" y="17" class="brand-sub" font-size="10.5" fill="#00F0FF">UNIVERSAL LINUX UNINSTALLER</text>
+    </g>
+
+    <!-- Tagline -->
+    <text x="0" y="152" class="tagline" font-size="14" fill="#94A3B8">
+      Deep-clean software &amp; leftover residual files with precision.
+    </text>
+  </g>
+</svg>

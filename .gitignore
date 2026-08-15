@@ -1,0 +1,28 @@
+# Binaries
+veet
+veet.exe
+unixpurge
+unixpurge.exe
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test artifacts
+*.test
+*.out
+coverage.html
+coverage.txt
+
+# OS & Editor files
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Local development data
+/history.log
+/apps-report.json
