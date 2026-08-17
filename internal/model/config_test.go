@@ -69,13 +69,29 @@ func TestRemovableFilesTotalAndAdd(t *testing.T) {
 
 func TestCandidates(t *testing.T) {
 	flatpakC := HomeCandidates("flatpak", "org.videolan.VLC")
-	if len(flatpakC) != 1 || flatpakC[0] != filepath.Join(".var", "app", "org.videolan.VLC") {
-		t.Fatalf("unexpected flatpak home candidate: %v", flatpakC)
+	foundFlatpakVar := false
+	for _, c := range flatpakC {
+		if c == filepath.Join(".var", "app", "org.videolan.VLC") {
+			foundFlatpakVar = true
+			break
+		}
 	}
+	if !foundFlatpakVar {
+		t.Fatalf("expected .var/app/org.videolan.VLC candidate in %v", flatpakC)
+	}
+
 	snapC := HomeCandidates("snap", "spotify")
-	if len(snapC) != 1 || snapC[0] != filepath.Join("snap", "spotify") {
-		t.Fatalf("unexpected snap home candidate: %v", snapC)
+	foundSnap := false
+	for _, c := range snapC {
+		if c == filepath.Join("snap", "spotify") {
+			foundSnap = true
+			break
+		}
 	}
+	if !foundSnap {
+		t.Fatalf("expected snap/spotify candidate in %v", snapC)
+	}
+
 	sysC := SystemCandidates("nginx")
 	if len(sysC) < 3 {
 		t.Fatalf("expected at least 3 system candidates, got %d", len(sysC))
@@ -99,4 +115,52 @@ func TestHumanSizeUnits(t *testing.T) {
 			t.Errorf("HumanSize(%d) = %q, want %q", c.kb, got, c.want)
 		}
 	}
+}
+
+func TestIconModesAndFallbacks(t *testing.T) {
+	if DetectIconMode("nerd") != IconModeNerd {
+		t.Fatal("expected IconModeNerd for 'nerd'")
+	}
+	if DetectIconMode("unicode") != IconModeUnicode {
+		t.Fatal("expected IconModeUnicode for 'unicode'")
+	}
+	if DetectIconMode("ascii") != IconModeASCII {
+		t.Fatal("expected IconModeASCII for 'ascii'")
+	}
+
+	// Test Nerd Mode icons
+	SetIconMode(IconModeNerd)
+	metaNerd := Meta("pacman")
+	if metaNerd.Icon != "󰮯" {
+		t.Fatalf("expected Nerd font icon 󰮯, got %s", metaNerd.Icon)
+	}
+	symNerd := GetUISymbols()
+	if symNerd.Disk != "󰋊" || symNerd.Check != "" {
+		t.Fatalf("unexpected Nerd UI symbols: %+v", symNerd)
+	}
+
+	// Test Unicode Fallback Mode
+	SetIconMode(IconModeUnicode)
+	metaUni := Meta("pacman")
+	if metaUni.Icon != "◎" {
+		t.Fatalf("expected Unicode icon ◎, got %s", metaUni.Icon)
+	}
+	symUni := GetUISymbols()
+	if symUni.Disk != "💾" || symUni.Check != "✓" {
+		t.Fatalf("unexpected Unicode UI symbols: %+v", symUni)
+	}
+
+	// Test ASCII Fallback Mode
+	SetIconMode(IconModeASCII)
+	metaASCII := Meta("pacman")
+	if metaASCII.Icon != "[pac]" {
+		t.Fatalf("expected ASCII icon [pac], got %s", metaASCII.Icon)
+	}
+	symASCII := GetUISymbols()
+	if symASCII.Disk != "DISK" || symASCII.Check != "[v]" {
+		t.Fatalf("unexpected ASCII UI symbols: %+v", symASCII)
+	}
+
+	// Reset to Nerd
+	SetIconMode(IconModeNerd)
 }

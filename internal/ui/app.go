@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -32,6 +33,7 @@ const (
 	stateReady
 	stateConfirming
 	stateConfirmDelete
+	stateSudoPassword
 	stateUninstalling
 	stateHistory
 	stateSettings
@@ -166,6 +168,9 @@ type Model struct {
 	sortMode        SortMode
 	showStagedPaths bool
 
+	sudoInput textinput.Model
+	sudoError string
+
 	runStart time.Time
 }
 
@@ -177,6 +182,7 @@ func New(cfg *model.Config) *Model {
 }
 
 func newModel(cfg *model.Config, un *uninstaller.Uninstaller, hlog *history.Log) *Model {
+	model.SetIconMode(model.DetectIconMode(cfg.Icons))
 	ApplyTheme(cfg.Theme)
 	details := viewport.New(60, 12)
 	confirm := viewport.New(80, 20)
@@ -187,6 +193,17 @@ func newModel(cfg *model.Config, un *uninstaller.Uninstaller, hlog *history.Log)
 	scanBar := progress.New(progress.WithSolidFill(Primary))
 	scanBar.Width = 50
 	scanBar.ShowPercentage = true
+
+	sudoIn := textinput.New()
+	sudoIn.EchoMode = textinput.EchoPassword
+	sudoIn.EchoCharacter = '•'
+	sudoIn.Placeholder = "Enter your administrator password..."
+	sudoIn.Width = 36
+	sudoIn.Prompt = "Password: "
+	sudoIn.PromptStyle = lipgloss.NewStyle().Bold(true).Foreground(danger)
+	sudoIn.TextStyle = lipgloss.NewStyle().Foreground(neutral)
+	sudoIn.PlaceholderStyle = lipgloss.NewStyle().Foreground(mutedColor)
+
 	m := &Model{
 		cfg:         cfg,
 		un:          un,
@@ -203,6 +220,7 @@ func newModel(cfg *model.Config, un *uninstaller.Uninstaller, hlog *history.Log)
 		confirm:     &confirm,
 		progress:    NewProgressPanel(),
 		hview:       &hview,
+		sudoInput:   sudoIn,
 	}
 	m.spinner.Style = lipgloss.NewStyle().Foreground(primary)
 	m.search = textinput.New()
@@ -242,12 +260,9 @@ func startScan(cfg *model.Config) (*scanPump, tea.Cmd) {
 
 func (p *scanPump) next() tea.Cmd {
 	return func() tea.Msg {
-		select {
-		case ev, ok := <-p.ch:
-			if ok {
-				return scanProgressMsg{ev: ev, pump: p}
-			}
-		default:
+		ev, ok := <-p.ch
+		if ok {
+			return scanProgressMsg{ev: ev, pump: p}
 		}
 		done := <-p.done
 		return done
@@ -266,9 +281,12 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.handleKey(msg)
 
 	case spinner.TickMsg:
-		var cmd tea.Cmd
-		m.spinner, cmd = m.spinner.Update(msg)
-		return m, cmd
+		var cmd1, cmd2 tea.Cmd
+		m.spinner, cmd1 = m.spinner.Update(msg)
+		if m.progress.Running() {
+			m.progress.spinner, cmd2 = m.progress.spinner.Update(msg)
+		}
+		return m, tea.Batch(cmd1, cmd2)
 
 	case startScanMsg:
 		m.state = stateScanning
@@ -337,12 +355,14 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case uninstallStepMsg:
 		if m.progress.Running() {
 			s := msg.step
+			sym := model.GetUISymbols()
 			if s.Err != nil {
-				m.progress.Push("✗ " + s.Text + " — " + s.Err.Error())
+				m.progress.Push(DangerText.Render(sym.Cross+" ") + s.Text + " — " + s.Err.Error())
 			} else {
-				m.progress.Push("✓ " + s.Text)
+				m.progress.Push(SuccessText.Render(sym.Check+" ") + s.Text)
 			}
 			m.progress.SetPercent(msg.pump.overallPercent(s))
+			m.table.SetApps(m.pointers)
 		}
 		return m, msg.pump.next()
 
@@ -389,6 +409,8 @@ func (m *Model) handleKey(msg tea.KeyMsg) tea.Cmd {
 		return m.handleConfirmKey(msg)
 	case stateConfirmDelete:
 		return m.handleDeleteConfirmKey(msg)
+	case stateSudoPassword:
+		return m.handleSudoPasswordKey(msg)
 	case stateUninstalling:
 		return nil // input blocked during an active uninstall
 	case stateHistory, stateSettings, stateHelp:
@@ -558,18 +580,7 @@ func (m *Model) handleConfirmKey(msg tea.KeyMsg) tea.Cmd {
 		m.state = stateReady
 		return nil
 	case "enter":
-		apps := m.pending
-		if len(apps) == 0 {
-			m.state = stateReady
-			return nil
-		}
-		m.pending = nil
-		m.pendingErrs = nil
-		m.state = stateUninstalling
-		m.progress.Start(fmt.Sprintf("Uninstalling %d app(s)...", len(apps)))
-		m.runStart = time.Now()
-		pump := startUninstall(m.un, apps)
-		return pump.next()
+		return m.confirmAndStartUninstall()
 	case "j", "k", "up", "down", "pgup", "pgdown", " ", "ctrl+d", "ctrl+u", "g", "G", "home", "end":
 		vp, cmd := m.confirm.Update(msg)
 		m.confirm = &vp
@@ -584,18 +595,7 @@ func (m *Model) handleConfirmKey(msg tea.KeyMsg) tea.Cmd {
 func (m *Model) handleDeleteConfirmKey(msg tea.KeyMsg) tea.Cmd {
 	switch msg.String() {
 	case "y", "Y", "enter":
-		apps := m.pending
-		if len(apps) == 0 {
-			m.state = stateReady
-			return nil
-		}
-		m.pending = nil
-		m.pendingErrs = nil
-		m.state = stateUninstalling
-		m.progress.Start(fmt.Sprintf("Uninstalling %d app(s)...", len(apps)))
-		m.runStart = time.Now()
-		pump := startUninstall(m.un, apps)
-		return pump.next()
+		return m.confirmAndStartUninstall()
 	case "n", "N", "esc", "q":
 		// No: return to the previous selection screen, nothing deleted.
 		m.pending = nil
@@ -611,15 +611,105 @@ func (m *Model) handleDeleteConfirmKey(msg tea.KeyMsg) tea.Cmd {
 	return nil
 }
 
+func (m *Model) confirmAndStartUninstall() tea.Cmd {
+	apps := m.pending
+	if len(apps) == 0 {
+		m.state = stateReady
+		return nil
+	}
+	if requiresSudo(apps) && !m.isSudoCached() {
+		m.state = stateSudoPassword
+		m.sudoError = ""
+		m.sudoInput.SetValue("")
+		return m.sudoInput.Focus()
+	}
+	return m.proceedWithUninstall()
+}
+
+func (m *Model) proceedWithUninstall() tea.Cmd {
+	apps := m.pending
+	m.pending = nil
+	m.pendingErrs = nil
+	m.state = stateUninstalling
+	m.progress.Start(fmt.Sprintf("Uninstalling %d app(s)...", len(apps)))
+	m.runStart = time.Now()
+	pump := startUninstall(m.un, apps)
+	return tea.Batch(m.spinner.Tick, pump.next())
+}
+
+func (m *Model) handleSudoPasswordKey(msg tea.KeyMsg) tea.Cmd {
+	switch msg.String() {
+	case "esc":
+		m.sudoInput.Blur()
+		m.sudoInput.SetValue("")
+		m.sudoError = ""
+		m.pending = nil
+		m.pendingErrs = nil
+		m.state = stateReady
+		m.activity = append(m.activity, "cancelled sudo authentication — nothing was removed")
+		return nil
+	case "enter":
+		pass := m.sudoInput.Value()
+		if pass == "" {
+			m.sudoError = "Password cannot be empty."
+			return nil
+		}
+		cmd := exec.Command("sudo", "-S", "-p", "", "-v")
+		cmd.Stdin = strings.NewReader(pass + "\n")
+		if err := cmd.Run(); err != nil {
+			m.sudoError = "Incorrect password, please try again."
+			m.sudoInput.SetValue("")
+			return nil
+		}
+		m.sudoInput.Blur()
+		m.sudoInput.SetValue("")
+		m.sudoError = ""
+		return m.proceedWithUninstall()
+	}
+	var cmd tea.Cmd
+	m.sudoInput, cmd = m.sudoInput.Update(msg)
+	return cmd
+}
+
+func requiresSudo(apps []*model.AppInfo) bool {
+	for _, a := range apps {
+		if a.Protected {
+			continue
+		}
+		switch a.Source {
+		case "apt", "dnf", "pacman", "aur", "zypper", "snap", "system":
+			return true
+		}
+		if len(a.Removable.Elevated) > 0 {
+			return true
+		}
+	}
+	return false
+}
+
+func (m *Model) isSudoCached() bool {
+	if _, isReal := m.un.Cmd.(uninstaller.RealCmder); !isReal {
+		return true
+	}
+	if os.Geteuid() == 0 {
+		return true
+	}
+	if _, err := exec.LookPath("sudo"); err != nil {
+		return true
+	}
+	return exec.Command("sudo", "-n", "true").Run() == nil
+}
+
 // renderDeleteConfirm builds the Yes/No popup content for the staged apps.
 func (m *Model) renderDeleteConfirm() {
+	sym := model.GetUISymbols()
 	var b strings.Builder
-	b.WriteString(DangerText.Render("⚠ REALLY DELETE?"))
+	b.WriteString(DangerText.Render(sym.Warning + " REALLY DELETE?"))
 	b.WriteString("\n\n")
 	var totalKB int64
 	for i, app := range m.pending {
 		rem := app.Removable
-		b.WriteString("  " + SuccessText.Render("✓ ") + Title.Render(app.Name) + "  " + SourceBadge(app.Source))
+		b.WriteString("  " + SuccessText.Render(sym.Check+" ") + Title.Render(app.Name) + "  " + SourceBadge(app.Source))
 		if i < len(m.pendingErrs) && m.pendingErrs[i] != "" {
 			b.WriteString("  " + DangerText.Render(m.pendingErrs[i]))
 			b.WriteString("\n")
@@ -635,7 +725,7 @@ func (m *Model) renderDeleteConfirm() {
 		for _, p := range rem.Paths {
 			line := "       " + p
 			if isElevated(p, rem) {
-				line += " " + DangerText.Render("🔒 sudo")
+				line += " " + DangerText.Render(sym.Sudo+" sudo")
 			}
 			b.WriteString(line + "\n")
 		}
@@ -670,6 +760,41 @@ func (m *Model) renderDeleteConfirmOverlay() string {
 		Width(w).
 		Render(m.confirm.View())
 	return lipgloss.NewStyle().Width(m.width).Align(lipgloss.Center).Render(box)
+}
+
+func (m *Model) renderSudoPasswordOverlay() string {
+	sym := model.GetUISymbols()
+	w := 64
+	if m.width-4 < w {
+		w = m.width - 4
+	}
+	if w < 40 {
+		w = 40
+	}
+
+	var b strings.Builder
+	b.WriteString(DangerText.Render(sym.Sudo + " ADMINISTRATOR PRIVILEGES REQUIRED"))
+	b.WriteString("\n\n")
+	b.WriteString(Sub.Render("Elevated privileges are needed to remove system packages and root files.\nYour password authenticates sudo securely for this session."))
+	b.WriteString("\n\n")
+	b.WriteString("  " + m.sudoInput.View())
+	b.WriteString("\n")
+	if m.sudoError != "" {
+		b.WriteString("\n  " + DangerText.Render(sym.Cross+" "+m.sudoError) + "\n")
+	} else {
+		b.WriteString("\n")
+	}
+	b.WriteString("\n  " + lipgloss.NewStyle().Bold(true).Foreground(primary).Render("[Enter] Authenticate & Clean") +
+		"    " + Muted.Render("[Esc] Cancel"))
+
+	card := lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(danger).
+		Padding(1, 2).
+		Width(w).
+		Render(b.String())
+
+	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, card)
 }
 
 func (m *Model) handleOverlayKey(msg tea.KeyMsg) tea.Cmd {
@@ -750,8 +875,15 @@ func startUninstall(un *uninstaller.Uninstaller, apps []*model.AppInfo) *uninsta
 	go func() {
 		ctx := context.Background()
 		var firstErr error
-		for _, app := range apps {
+		totalApps := len(apps)
+		for idx, app := range apps {
 			app.Status = "Removing"
+			p.ch <- uninstaller.Step{
+				App:     app.Name,
+				Source:  app.Source,
+				Text:    fmt.Sprintf("[%d/%d] Starting removal of %s (%s)...", idx+1, totalApps, app.Name, app.Source),
+				Percent: float64(idx) / float64(totalApps),
+			}
 			freed, files, err := un.Remove(ctx, app, func(s uninstaller.Step) {
 				p.ch <- s
 			})
@@ -784,15 +916,12 @@ func (p *uninstallPump) overallPercent(s uninstaller.Step) float64 {
 // next returns a cmd that emits the next step message, or the final result.
 func (p *uninstallPump) next() tea.Cmd {
 	return func() tea.Msg {
-		select {
-		case step, ok := <-p.ch:
-			if ok {
-				return uninstallStepMsg{step: step, pump: p}
-			}
-		default:
+		step, ok := <-p.ch
+		if ok {
+			return uninstallStepMsg{step: step, pump: p}
 		}
 		<-p.done
-		firstErr := error(nil)
+		var firstErr error
 		for _, r := range p.results {
 			if r.err != nil {
 				firstErr = r.err
@@ -1019,15 +1148,16 @@ func (m *Model) exportReportCmd() tea.Cmd {
 
 // renderConfirm builds the confirmation panel content (every path listed).
 func (m *Model) renderConfirm() {
+	sym := model.GetUISymbols()
 	var b strings.Builder
-	b.WriteString(DangerText.Render("⚠ CONFIRM UNINSTALL — CANNOT BE UNDONE"))
+	b.WriteString(DangerText.Render(sym.Warning + " CONFIRM UNINSTALL — CANNOT BE UNDONE"))
 	b.WriteString("\n\n")
 
 	var totalKB, totalFiles int64
 	hasElevated := false
 	for i, app := range m.pending {
 		rem := app.Removable
-		b.WriteString(SuccessText.Render("✓ ") + Title.Render(app.Name) + "  " + SourceBadge(app.Source))
+		b.WriteString(SuccessText.Render(sym.Check+" ") + Title.Render(app.Name) + "  " + SourceBadge(app.Source))
 		b.WriteString("\n")
 		if i < len(m.pendingErrs) && m.pendingErrs[i] != "" {
 			b.WriteString("    " + DangerText.Render(m.pendingErrs[i]) + "\n\n")
@@ -1040,11 +1170,11 @@ func (m *Model) renderConfirm() {
 			hasElevated = true
 		}
 		b.WriteString("\n")
-		for _, line := range strings.Split(removeRow("config", rem.ConfigKB)+
-			removeRow("cache", rem.CacheKB)+
-			removeRow("logs", rem.LogKB)+
-			removeRow("local data", rem.LocalDataKB)+
-			removeRow("residuals", rem.ResidualKB), "\n") {
+		for _, line := range strings.Split(removeRow("config", rem.ConfigKB, sym)+
+			removeRow("cache", rem.CacheKB, sym)+
+			removeRow("logs", rem.LogKB, sym)+
+			removeRow("local data", rem.LocalDataKB, sym)+
+			removeRow("residuals", rem.ResidualKB, sym), "\n") {
 			if strings.TrimSpace(line) != "" {
 				b.WriteString("    " + strings.TrimSpace(line) + "\n")
 			}
@@ -1054,7 +1184,7 @@ func (m *Model) renderConfirm() {
 			for _, p := range rem.Paths {
 				line := "      " + p
 				if isElevated(p, rem) {
-					line += " " + DangerText.Render("🔒 sudo")
+					line += " " + DangerText.Render(sym.Sudo+" sudo")
 				}
 				b.WriteString(line + "\n")
 			}
@@ -1067,9 +1197,9 @@ func (m *Model) renderConfirm() {
 		model.HumanSize(totalKB), totalFiles, len(m.pending))))
 	b.WriteString("\n")
 	if hasElevated {
-		b.WriteString(DangerText.Render("🔒 Some paths require sudo — you will be prompted for your password once.\n"))
+		b.WriteString(DangerText.Render(" Some paths require sudo — you will be prompted for your password once.\n"))
 	}
-	b.WriteString("\n" + DangerText.Render("⚠ This cannot be undone. Press Enter to confirm, Esc to cancel."))
+	b.WriteString("\n" + DangerText.Render(" This cannot be undone. Press Enter to confirm, Esc to cancel."))
 	m.confirm.SetContent(b.String())
 }
 
@@ -1088,6 +1218,8 @@ func (m *Model) View() string {
 		return m.renderMain() + "\n" + m.renderConfirmOverlay()
 	case stateConfirmDelete:
 		return m.renderMain() + "\n" + m.renderDeleteConfirmOverlay()
+	case stateSudoPassword:
+		return m.renderMain() + "\n" + m.renderSudoPasswordOverlay()
 	case stateUninstalling:
 		return m.renderMain()
 	case stateHistory:
@@ -1147,29 +1279,30 @@ func (m *Model) renderScan() string {
 		colW = 20
 	}
 
+	sym := model.GetUISymbols()
 	var rowCells []string
 	for i, s := range sources {
 		meta := model.Meta(s)
 		st, ok := m.scanSources[s]
-		statusLabel := Muted.Render("○ pending")
+		statusLabel := Muted.Render(sym.Pending + " pending")
 		borderClr := panelBorder
 		if ok {
 			switch st.Status {
 			case "starting", "scanning":
-				statusLabel = HighlightText.Render("● scanning...")
+				statusLabel = HighlightText.Render(sym.Scanning + " scanning...")
 				borderClr = highlight
 			case "done":
 				if st.Count > 0 {
-					statusLabel = SuccessText.Render(fmt.Sprintf("✓ %d apps", st.Count))
+					statusLabel = SuccessText.Render(fmt.Sprintf("%s %d apps", sym.Check, st.Count))
 					borderClr = success
 				} else {
-					statusLabel = Muted.Render("✓ 0 found")
+					statusLabel = Muted.Render(sym.Check + " 0 found")
 					borderClr = panelBorder
 				}
 			case "skipped":
-				statusLabel = Muted.Render("– skipped")
+				statusLabel = Muted.Render(sym.Skipped + " skipped")
 			case "error":
-				statusLabel = DangerText.Render("✗ error")
+				statusLabel = DangerText.Render(sym.Cross + " error")
 				borderClr = danger
 			}
 		}
@@ -1179,7 +1312,7 @@ func (m *Model) renderScan() string {
 		tile := lipgloss.NewStyle().
 			Border(lipgloss.RoundedBorder()).
 			BorderForeground(borderClr).
-			Width(colW - 2).
+			Width(colW-2).
 			Padding(0, 1).
 			Render(Truncate(tileContent, colW-4))
 		rowCells = append(rowCells, tile)
@@ -1207,6 +1340,7 @@ func (m *Model) renderScan() string {
 }
 
 func diskUsage(path string) string {
+	sym := model.GetUISymbols()
 	var stat unix.Statfs_t
 	if err := unix.Statfs(path, &stat); err != nil {
 		return ""
@@ -1218,17 +1352,18 @@ func diskUsage(path string) string {
 		return ""
 	}
 	pct := int(float64(used) * 100 / float64(total))
-	return fmt.Sprintf("💾 %s / %s (%d%%)", model.HumanSize(used), model.HumanSize(total), pct)
+	return fmt.Sprintf("%s %s / %s (%d%%)", sym.Disk, model.HumanSize(used), model.HumanSize(total), pct)
 }
 
 func (m *Model) renderHeader() string {
+	sym := model.GetUISymbols()
 	logo := Title.Render("VEET")
 	sub := HeaderMuted.Render("Universal Linux App Uninstaller")
 	disk := diskUsage(m.cfg.Home)
 	if disk != "" {
 		disk = HighlightText.Render(disk)
 	}
-	clock := InfoText.Render(time.Now().Format("15:04:05"))
+	clock := InfoText.Render(sym.Clock + " " + time.Now().Format("15:04:05"))
 	left := logo + "  " + sub
 	if disk != "" {
 		left += "   " + disk
@@ -1304,7 +1439,7 @@ func (m *Model) renderMain() string {
 		m.progress.bar.Width = leftW - 8
 		elapsed := int(time.Since(m.runStart).Seconds())
 		bottom = lipgloss.JoinHorizontal(lipgloss.Top,
-			m.progress.View(), QuickActions(rightW, elapsed))
+			m.progress.View(leftW), QuickActions(rightW, elapsed))
 	} else {
 		bottom = lipgloss.JoinHorizontal(lipgloss.Top,
 			ProgressIdle(leftW, m.activity), QuickActions(rightW, 0))

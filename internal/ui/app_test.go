@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/spf13/afero"
 
@@ -272,7 +273,17 @@ func runCmd(cmd tea.Cmd) tea.Msg {
 	if cmd == nil {
 		return nil
 	}
-	return cmd()
+	msg := cmd()
+	if batch, ok := msg.(tea.BatchMsg); ok {
+		for _, c := range batch {
+			if subMsg := runCmd(c); subMsg != nil {
+				if _, isTick := subMsg.(spinner.TickMsg); !isTick {
+					return subMsg
+				}
+			}
+		}
+	}
+	return msg
 }
 
 func TestDeleteKeyFlowYes(t *testing.T) {
@@ -408,5 +419,49 @@ func TestHistoryClearKey(t *testing.T) {
 	entries, _ := m.hlog.Read()
 	if len(entries) != 0 {
 		t.Fatalf("expected history to be cleared, got %d", len(entries))
+	}
+}
+
+func TestSudoPasswordModalFlow(t *testing.T) {
+	m := testModel()
+	m.pending = []*model.AppInfo{
+		{Name: "nginx", Source: "apt", InstallSizeKB: 1024},
+	}
+	m.state = stateSudoPassword
+	m.sudoInput.SetValue("")
+
+	// Typing empty password should show error
+	m.handleKey(tea.KeyMsg{Type: tea.KeyEnter})
+	if m.sudoError == "" {
+		t.Fatal("expected error on empty password")
+	}
+
+	// Esc should cancel
+	m.handleKey(tea.KeyMsg{Type: tea.KeyEsc})
+	if m.state != stateReady {
+		t.Fatalf("state = %d, want stateReady on Esc", m.state)
+	}
+	if len(m.pending) != 0 {
+		t.Fatal("expected pending apps to be cleared")
+	}
+}
+
+func TestRequiresSudo(t *testing.T) {
+	cases := []struct {
+		app  model.AppInfo
+		want bool
+	}{
+		{model.AppInfo{Name: "curl", Source: "apt"}, true},
+		{model.AppInfo{Name: "git", Source: "pacman"}, true},
+		{model.AppInfo{Name: "docker", Source: "snap"}, true},
+		{model.AppInfo{Name: "jan", Source: "flatpak"}, false},
+		{model.AppInfo{Name: "prettier", Source: "npm"}, false},
+		{model.AppInfo{Name: "tmux", Source: "apt", Protected: true}, false},
+	}
+	for _, c := range cases {
+		got := requiresSudo([]*model.AppInfo{&c.app})
+		if got != c.want {
+			t.Errorf("requiresSudo(%s:%s) = %v, want %v", c.app.Source, c.app.Name, got, c.want)
+		}
 	}
 }

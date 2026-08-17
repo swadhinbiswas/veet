@@ -97,7 +97,56 @@ fi
 
 printf "${GREEN}✓${NC} Shell completions generated.\n"
 
-# 6. Verify PATH
+# 6. Auto-install Nerd Font Symbols if missing
+printf "${YELLOW}•${NC} Checking Nerd Font icon support...\n"
+HAS_NERD=false
+if command -v fc-list >/dev/null 2>&1; then
+    if fc-list : family | grep -qi "Nerd Font"; then
+        HAS_NERD=true
+        printf "${GREEN}✓${NC} Nerd Font detected in fontconfig.\n"
+    fi
+fi
+
+if [ "$HAS_NERD" = false ]; then
+    if [ "$(id -u)" -eq 0 ]; then
+        FONT_DIR="/usr/local/share/fonts/NerdFonts"
+    else
+        FONT_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/fonts/NerdFonts"
+    fi
+    mkdir -p "$FONT_DIR"
+    FONT_FILE="$FONT_DIR/SymbolsNerdFont-Regular.ttf"
+    FONT_MONO="$FONT_DIR/SymbolsNerdFontMono-Regular.ttf"
+
+    if [ ! -f "$FONT_FILE" ]; then
+        printf "${YELLOW}•${NC} Downloading official Nerd Font Symbols into ${BOLD}%s${NC}...\n" "$FONT_DIR"
+        FONT_URL="https://github.com/ryanoasis/nerd-fonts/raw/HEAD/patched-fonts/NerdFontsSymbolsOnly/SymbolsNerdFont-Regular.ttf"
+        FONT_MONO_URL="https://github.com/ryanoasis/nerd-fonts/raw/HEAD/patched-fonts/NerdFontsSymbolsOnly/SymbolsNerdFontMono-Regular.ttf"
+        
+        DOWNLOADED=false
+        if command -v curl >/dev/null 2>&1; then
+            if curl -fLo "$FONT_FILE" "$FONT_URL" 2>/dev/null && curl -fLo "$FONT_MONO" "$FONT_MONO_URL" 2>/dev/null; then
+                DOWNLOADED=true
+            fi
+        elif command -v wget >/dev/null 2>&1; then
+            if wget -qO "$FONT_FILE" "$FONT_URL" 2>/dev/null && wget -qO "$FONT_MONO" "$FONT_MONO_URL" 2>/dev/null; then
+                DOWNLOADED=true
+            fi
+        fi
+
+        if [ "$DOWNLOADED" = true ]; then
+            if command -v fc-cache >/dev/null 2>&1; then
+                fc-cache -f "$FONT_DIR" 2>/dev/null || true
+            fi
+            printf "${GREEN}✓${NC} Installed Nerd Font Symbols fallback font.\n"
+        else
+            printf "${YELLOW}• Note:${NC} Could not auto-download font. VEET will use universal Unicode fallback (${CYAN}icons: auto${NC}).\n"
+        fi
+    else
+        printf "${GREEN}✓${NC} Nerd Font Symbols already present in %s.\n" "$FONT_DIR"
+    fi
+fi
+
+# 7. Verify PATH
 IN_PATH=false
 case ":$PATH:" in
     *":$INSTALL_DIR:"*) IN_PATH=true ;;

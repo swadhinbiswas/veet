@@ -68,15 +68,23 @@ func (p *ProgressPanel) View(width ...int) string {
 		w = width[0]
 	}
 	var b strings.Builder
-	b.WriteString(HighlightText.Render("PROGRESS & ACTIVITY"))
+	b.WriteString(p.spinner.View() + " " + HighlightText.Render("UNINSTALLING & DEEP CLEANING..."))
 	b.WriteString("\n")
-	b.WriteString(Muted.Render(Truncate(p.label, w-6)))
+	b.WriteString(" " + Sub.Render(Truncate(p.label, w-4)))
+	b.WriteString("\n\n")
+	p.bar.Width = w - 6
+	b.WriteString(" " + p.bar.ViewAs(p.percent))
+	b.WriteString("\n\n")
+	b.WriteString(" " + Muted.Render("Recent Actions:"))
 	b.WriteString("\n")
-	b.WriteString(p.bar.ViewAs(p.percent))
-	b.WriteString("\n")
-	for _, s := range p.steps {
-		b.WriteString("  " + Muted.Render(Truncate(s, w-8)))
+	if len(p.steps) == 0 {
+		b.WriteString("   " + Muted.Render("• starting process..."))
 		b.WriteString("\n")
+	} else {
+		for _, s := range p.steps {
+			b.WriteString("   " + Truncate(s, w-6))
+			b.WriteString("\n")
+		}
 	}
 	if len(width) > 0 && width[0] > 0 {
 		return Panel.Width(width[0]).Render(strings.TrimRight(b.String(), "\n"))

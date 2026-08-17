@@ -11,6 +11,8 @@ makedepends=('git' 'go')
 provides=('veet')
 conflicts=('veet' 'veet-bin')
 optdepends=(
+    'ttf-nerd-fonts-symbols: for glyph icons without patching base font'
+    'ttf-jetbrains-mono-nerd: recommended modern mono font with glyph icons'
     'flatpak: for Flatpak app management'
     'snapd: for Snap package management'
     'pacman: for Arch package management'

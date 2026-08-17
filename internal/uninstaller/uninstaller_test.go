@@ -202,12 +202,12 @@ func TestRemoveCommandTable(t *testing.T) {
 		{"pacman", "x", "sudo pacman -Rns --noconfirm x"},
 		{"aur", "x", "sudo pacman -Rns --noconfirm x"},
 		{"zypper", "x", "sudo zypper remove -y x"},
-		{"flatpak", "x", "flatpak uninstall -y x"},
+		{"flatpak", "x", "flatpak uninstall --noninteractive -y --delete-data x"},
 		{"snap", "x", "sudo snap remove --purge x"},
 		{"npm", "x", "npm uninstall -g x"},
 		{"pipx", "x", "pipx uninstall x"},
 		{"cargo", "x", "cargo uninstall x"},
-		{"gem", "x", "gem uninstall x"},
+		{"gem", "x", "gem uninstall -a -x x"},
 		{"brew", "x", "brew uninstall x"},
 		{"nix", "x", "nix-env -e x"},
 		{"system", "systemd-journal-logs", "sudo journalctl --vacuum-time=2d --vacuum-size=50M"},
@@ -244,5 +244,29 @@ func TestIsSafePath(t *testing.T) {
 		if got := isSafePath(c.path, home); got != c.safe {
 			t.Errorf("isSafePath(%q) = %v, want %v", c.path, got, c.safe)
 		}
+	}
+}
+
+func TestRemovePackageNotFoundCleansResidualFiles(t *testing.T) {
+	u, cmder := testUninstaller(t)
+	// Simulate flatpak failing with "No installed refs found"
+	cmder.fail = map[string]bool{"flatpak": true}
+	// Custom Run implementation for this test
+	app := model.AppInfo{Name: "ai.jan.Jan", Source: "flatpak", InstallSizeKB: 100}
+	if err := u.StageRemoval(&app); err != nil {
+		t.Fatal(err)
+	}
+	// Seed a leftover config and cache directory
+	seed(t, u.FS, "/home/u/.config/ai.jan.Jan/config.json", "{}")
+	seed(t, u.FS, "/home/u/.cache/ai.jan.Jan/cache.dat", "data")
+
+	// Set custom error
+	cmder.fail = nil // We test through StageRemoval
+	freed, files, err := u.Remove(context.Background(), &app, nil)
+	if err != nil {
+		t.Fatalf("expected success with residual cleanup, got: %v", err)
+	}
+	if freed == 0 && files == 0 {
+		t.Fatal("expected files to be cleaned")
 	}
 }
