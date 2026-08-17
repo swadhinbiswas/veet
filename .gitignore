@@ -1,8 +1,8 @@
 # Binaries
-veet
-veet.exe
-unixpurge
-unixpurge.exe
+/veet
+/veet.exe
+/unixpurge
+/unixpurge.exe
 *.exe
 *.exe~
 *.dll
