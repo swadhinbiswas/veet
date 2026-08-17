@@ -14,7 +14,8 @@ import (
 // fakeCmder records commands and simulates failures on demand.
 type fakeCmder struct {
 	ran     []string
-	fail    map[string]bool // tool name -> always fail
+	fail    map[string]bool  // tool name -> always fail
+	errs    map[string]error // specific command or tool -> custom error
 	hasSudo bool
 }
 
@@ -26,7 +27,16 @@ func (f *fakeCmder) LookPath(name string) (string, error) {
 }
 
 func (f *fakeCmder) Run(ctx context.Context, name string, args ...string) error {
-	f.ran = append(f.ran, name+" "+strings.Join(args, " "))
+	fullCmd := name + " " + strings.Join(args, " ")
+	f.ran = append(f.ran, fullCmd)
+	if f.errs != nil {
+		if err, ok := f.errs[fullCmd]; ok {
+			return err
+		}
+		if err, ok := f.errs[name]; ok {
+			return err
+		}
+	}
 	if f.fail != nil && f.fail[name] {
 		return errors.New("command failed")
 	}
@@ -249,24 +259,68 @@ func TestIsSafePath(t *testing.T) {
 
 func TestRemovePackageNotFoundCleansResidualFiles(t *testing.T) {
 	u, cmder := testUninstaller(t)
-	// Simulate flatpak failing with "No installed refs found"
-	cmder.fail = map[string]bool{"flatpak": true}
-	// Custom Run implementation for this test
+	// Seed a leftover config and cache directory before staging
+	seed(t, u.FS, "/home/u/.config/ai.jan.Jan/config.json", "{}")
+	seed(t, u.FS, "/home/u/.cache/ai.jan.Jan/cache.dat", "data")
+
 	app := model.AppInfo{Name: "ai.jan.Jan", Source: "flatpak", InstallSizeKB: 100}
 	if err := u.StageRemoval(&app); err != nil {
 		t.Fatal(err)
 	}
-	// Seed a leftover config and cache directory
-	seed(t, u.FS, "/home/u/.config/ai.jan.Jan/config.json", "{}")
-	seed(t, u.FS, "/home/u/.cache/ai.jan.Jan/cache.dat", "data")
 
-	// Set custom error
-	cmder.fail = nil // We test through StageRemoval
+	// Simulate system-level flatpak failing with "No installed refs found"
+	cmder.errs = map[string]error{
+		"flatpak uninstall --noninteractive -y --delete-data ai.jan.Jan": errors.New("error: No installed refs found for ai.jan.Jan"),
+	}
+
 	freed, files, err := u.Remove(context.Background(), &app, nil)
 	if err != nil {
 		t.Fatalf("expected success with residual cleanup, got: %v", err)
 	}
-	if freed == 0 && files == 0 {
-		t.Fatal("expected files to be cleaned")
+	if freed == 0 || files == 0 {
+		t.Fatalf("expected files to be cleaned, freed=%d files=%d", freed, files)
+	}
+
+	// Verify that the user-scope fallback command ran
+	foundUserFallback := false
+	for _, cmd := range cmder.ran {
+		if cmd == "flatpak uninstall --user --noninteractive -y ai.jan.Jan" {
+			foundUserFallback = true
+			break
+		}
+	}
+	if !foundUserFallback {
+		t.Fatalf("expected flatpak --user fallback to run, ran: %v", cmder.ran)
+	}
+
+	// Config files should have been removed
+	if exists, _ := afero.DirExists(u.FS, "/home/u/.config/ai.jan.Jan"); exists {
+		t.Fatal("config directory should have been purged")
+	}
+}
+
+func TestRemoveFlatpakFatalFailureAborts(t *testing.T) {
+	u, cmder := testUninstaller(t)
+	seed(t, u.FS, "/home/u/.config/ai.jan.Jan/config.json", "{}")
+
+	app := model.AppInfo{Name: "ai.jan.Jan", Source: "flatpak", InstallSizeKB: 100}
+	if err := u.StageRemoval(&app); err != nil {
+		t.Fatal(err)
+	}
+
+	// Fatal uninstaller failure that is not a missing reference
+	cmder.errs = map[string]error{
+		"flatpak uninstall --noninteractive -y --delete-data ai.jan.Jan": errors.New("error: DBus connection timed out"),
+	}
+
+	_, files, err := u.Remove(context.Background(), &app, nil)
+	if err == nil {
+		t.Fatal("expected Remove to return error on fatal flatpak failure")
+	}
+	if files != 0 {
+		t.Fatalf("expected no files to be removed on fatal failure, removed %d", files)
+	}
+	if exists, _ := afero.DirExists(u.FS, "/home/u/.config/ai.jan.Jan"); !exists {
+		t.Fatal("config directory must survive a fatal package failure")
 	}
 }
