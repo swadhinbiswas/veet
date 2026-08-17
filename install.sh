@@ -117,28 +117,34 @@ if [ "$HAS_NERD" = false ]; then
     FONT_FILE="$FONT_DIR/SymbolsNerdFont-Regular.ttf"
     FONT_MONO="$FONT_DIR/SymbolsNerdFontMono-Regular.ttf"
 
-    if [ ! -f "$FONT_FILE" ]; then
+    if [ ! -f "$FONT_FILE" ] || [ ! -f "$FONT_MONO" ]; then
         printf "${YELLOW}•${NC} Downloading official Nerd Font Symbols into ${BOLD}%s${NC}...\n" "$FONT_DIR"
         FONT_URL="https://github.com/ryanoasis/nerd-fonts/raw/HEAD/patched-fonts/NerdFontsSymbolsOnly/SymbolsNerdFont-Regular.ttf"
         FONT_MONO_URL="https://github.com/ryanoasis/nerd-fonts/raw/HEAD/patched-fonts/NerdFontsSymbolsOnly/SymbolsNerdFontMono-Regular.ttf"
         
+        FONT_FILE_TMP="${FONT_FILE}.tmp.$$"
+        FONT_MONO_TMP="${FONT_MONO}.tmp.$$"
         DOWNLOADED=false
+
         if command -v curl >/dev/null 2>&1; then
-            if curl -fLo "$FONT_FILE" "$FONT_URL" 2>/dev/null && curl -fLo "$FONT_MONO" "$FONT_MONO_URL" 2>/dev/null; then
+            if curl -fLo "$FONT_FILE_TMP" "$FONT_URL" 2>/dev/null && curl -fLo "$FONT_MONO_TMP" "$FONT_MONO_URL" 2>/dev/null; then
                 DOWNLOADED=true
             fi
         elif command -v wget >/dev/null 2>&1; then
-            if wget -qO "$FONT_FILE" "$FONT_URL" 2>/dev/null && wget -qO "$FONT_MONO" "$FONT_MONO_URL" 2>/dev/null; then
+            if wget -qO "$FONT_FILE_TMP" "$FONT_URL" 2>/dev/null && wget -qO "$FONT_MONO_TMP" "$FONT_MONO_URL" 2>/dev/null; then
                 DOWNLOADED=true
             fi
         fi
 
-        if [ "$DOWNLOADED" = true ]; then
+        if [ "$DOWNLOADED" = true ] && [ -s "$FONT_FILE_TMP" ] && [ -s "$FONT_MONO_TMP" ]; then
+            mv -f "$FONT_FILE_TMP" "$FONT_FILE"
+            mv -f "$FONT_MONO_TMP" "$FONT_MONO"
             if command -v fc-cache >/dev/null 2>&1; then
                 fc-cache -f "$FONT_DIR" 2>/dev/null || true
             fi
             printf "${GREEN}✓${NC} Installed Nerd Font Symbols fallback font.\n"
         else
+            rm -f "$FONT_FILE_TMP" "$FONT_MONO_TMP"
             printf "${YELLOW}• Note:${NC} Could not auto-download font. VEET will use universal Unicode fallback (${CYAN}icons: auto${NC}).\n"
         fi
     else
