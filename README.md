@@ -43,11 +43,12 @@ Over extended usage, unmanaged leftovers consume significant disk storage. Moder
 | **Binary Removal** | Yes | Yes | No | **Yes** |
 | **User Configuration Cleanup (`~/.config`)** | No | No | Partial | **Yes (Inspected &amp; Staged)** |
 | **User Cache Cleanup (`~/.cache`)** | No | No | Yes | **Yes (Inspected &amp; Staged)** |
-| **Universal Multi-Source Aggregator** | No | No | No | **Yes (15+ package managers)** |
+| **Universal Multi-Source Aggregator** | No | No | No | **Yes (17+ package managers incl. Brew &amp; Nix)** |
 | **Orphaned Dependencies Detection** | Manual query | No | No | **Yes (Live detection)** |
 | **AppImage &amp; Portable Binary Scanner** | No | No | No | **Yes (Auto-discovered)** |
-| **Interactive Terminal UI (TUI)** | No | No | GTK Only | **Yes (Zero-latency Bubble Tea)** |
-| **Pre-execution Dry-run Inspection** | Partial | Partial | Yes | **Yes (Full path inspection)** |
+| **Interactive Terminal UI (TUI)** | No | No | GTK Only | **Yes (7 Themes, Streaming Scan Matrix)** |
+| **Advanced Query Syntax (`@source`, `>size`)** | No | No | No | **Yes (Filter by source, size &amp; protection)** |
+| **Pre-execution Dry-run Inspection** | Partial | Partial | Yes | **Yes (Full path inspection &amp; `--dry-run`)** |
 | **Batched Sudo Elevation** | Per command | N/A | Full root required | **Yes (Single prompt per batch)** |
 
 ---
@@ -58,11 +59,11 @@ Over extended usage, unmanaged leftovers consume significant disk storage. Moder
   <tr>
     <td width="50%" valign="top">
       <h4><img src="assets/icons/sources.svg" alt="" width="18" height="18" align="center" /> Multi-Source Parallel Detection</h4>
-      <p>Concurrently queries system package managers (<code>pacman</code>/AUR, <code>apt</code>, <code>dnf</code>, <code>zypper</code>), sandboxed formats (<code>Flatpak</code>, <code>Snap</code>), portable bundles (<code>AppImage</code>), and language toolchains (<code>npm -g</code>, <code>pipx</code>, <code>cargo</code>, <code>gem</code>, <code>go install</code>) with zero-cost skipping for absent tools.</p>
+      <p>Concurrently queries system package managers (<code>pacman</code>/AUR, <code>apt</code>, <code>dnf</code>, <code>zypper</code>), sandboxed formats (<code>Flatpak</code>, <code>Snap</code>), portable bundles (<code>AppImage</code>, <code>Homebrew</code>, <code>Nix</code>), and language toolchains (<code>npm -g</code>, <code>pipx</code>, <code>cargo</code>, <code>gem</code>, <code>go install</code>) with zero-cost skipping for absent tools.</p>
     </td>
     <td width="50%" valign="top">
       <h4><img src="assets/icons/purge.svg" alt="" width="18" height="18" align="center" /> Deep Residual Cleanup</h4>
-      <p>Automates residual discovery across user configurations, cached runtime stores, desktop integration entries, icons, and system paths, staging each candidate before disk execution.</p>
+      <p>Automates residual discovery across user configurations, cached runtime stores (<code>~/.var/app</code>, <code>~/snap</code>), desktop integration entries, icons, and system paths, staging each candidate before disk execution.</p>
     </td>
   </tr>
   <tr>
@@ -72,13 +73,13 @@ Over extended usage, unmanaged leftovers consume significant disk storage. Moder
     </td>
     <td width="50%" valign="top">
       <h4><img src="assets/icons/journal.svg" alt="" width="18" height="18" align="center" /> System Log &amp; Journal Vacuum</h4>
-      <p>Identifies bloated systemd journal storage (<code>/var/log/journal</code>) and rotated compressed log archives (<code>/var/log/*.gz</code>) with integrated elevated vacuum routines.</p>
+      <p>Identifies bloated systemd journal storage and cleans it safely via <code>journalctl --vacuum</code> alongside rotated compressed log archives with integrated elevated vacuum routines.</p>
     </td>
   </tr>
   <tr>
     <td width="50%" valign="top">
       <h4><img src="assets/icons/terminal.svg" alt="" width="18" height="18" align="center" /> Interactive Navigation &amp; Telemetry</h4>
-      <p>Instant category switching (<kbd>1</kbd>–<kbd>6</kbd>), four-mode list sorting (<kbd>o</kbd>) for rapid disk bloat identification, and in-place staged path inspection (<kbd>p</kbd>).</p>
+      <p>Live startup matrix progress grid, instant category switching (<kbd>1</kbd>–<kbd>6</kbd>), four-mode list sorting (<kbd>o</kbd>), advanced search syntax (<kbd>/</kbd>), and in-place staged path inspection (<kbd>p</kbd>).</p>
     </td>
     <td width="50%" valign="top">
       <h4><img src="assets/icons/security.svg" alt="" width="18" height="18" align="center" /> Sudo Batching &amp; Anti-Brick Safety</h4>
@@ -158,12 +159,38 @@ veet scan
 # Export machine-readable JSON inventory
 veet scan --json
 
-# Non-interactive deep-clean removal with preview
-veet clean <package-name>
+# Deep-clean uninstall one or multiple applications (interactive confirmation)
+veet clean app1 app2
 
-# Non-interactive removal scoped to specific source with confirmation
-veet clean <package-name> --source flatpak --yes
+# Inspect staged paths without deleting anything
+veet clean <package-name> --dry-run
+
+# Non-interactive deep-clean removal with auto-confirmation
+veet clean <package-name> --yes
+
+# Detect and prune orphaned packages
+veet orphans --clean --yes
+
+# Inspect and purge leftover caches and directories
+veet cache --clean --yes
+
+# View or clear uninstallation audit history
+veet history
+veet history --clear
 ```
+
+---
+
+### Advanced Search Syntax
+
+Press <kbd>/</kbd> in the TUI to focus the search bar. You can use query modifiers:
+
+- **Filter by package source**: `@flatpak`, `@aur`, `@snap`, `@npm`, `@brew`, `@nix`
+- **Filter by minimum size**: `>100M`, `>1G`, `>500K`
+- **Filter by maximum size**: `<50M`
+- **Filter by protected status**: `protected:true` or `protected:false`
+- **Fuzzy text**: Any text will fuzzy-match the application name.
+- *Combine modifiers*: `@flatpak >200M gimp`
 
 ---
 
@@ -194,6 +221,10 @@ veet clean <package-name> --source flatpak --yes
       <td>Toggle multi-select checkbox on active row</td>
     </tr>
     <tr>
+      <td><kbd>d</kbd> / <kbd>D</kbd></td>
+      <td><b>DELETE</b> the selected (or currently highlighted) app — opens a <code>Really delete? [Y] Yes / [N] No</code> popup; <kbd>Y</kbd> uninstalls, <kbd>N</kbd>/<kbd>Esc</kbd> returns to the selection screen</td>
+    </tr>
+    <tr>
       <td><kbd>a</kbd></td>
       <td>Select / deselect all visible filtered rows (skips protected components)</td>
     </tr>
@@ -207,7 +238,7 @@ veet clean <package-name> --source flatpak --yes
     </tr>
     <tr>
       <td><kbd>/</kbd></td>
-      <td>Focus fuzzy search-as-you-type filter input</td>
+      <td>Focus advanced search input (supports <code>@source</code>, <code>>100M</code>, <code>protected:true</code>)</td>
     </tr>
     <tr>
       <td><kbd>Tab</kbd> / <kbd>Shift+Tab</kbd></td>
@@ -215,11 +246,11 @@ veet clean <package-name> --source flatpak --yes
     </tr>
     <tr>
       <td><kbd>Enter</kbd></td>
-      <td>Stage selected applications and open confirmation preview modal</td>
+      <td>Stage selected applications and open full confirmation preview modal (Enter again to confirm)</td>
     </tr>
     <tr>
       <td><kbd>c</kbd></td>
-      <td>1-key quick purge for user cache &amp; residual files</td>
+      <td>In History modal: clear audit log / In main table: quick purge for cache</td>
     </tr>
     <tr>
       <td><kbd>e</kbd></td>
@@ -260,9 +291,12 @@ veet clean <package-name> --source flatpak --yes
 <summary><b>Custom Configuration (<code>~/.config/veet/config.yaml</code>)</b></summary>
 <br/>
 
-VEET supports optional user configuration via YAML. Create `~/.config/veet/config.yaml` to declare custom protected packages:
+VEET supports user configuration via YAML. Create `~/.config/veet/config.yaml` to set your visual theme and declare custom protected packages:
 
 ```yaml
+# Visual theme palette: cyan, catppuccin, nord, dracula, gruvbox, tokyo-night, monokai
+theme: catppuccin
+
 # Packages that VEET will refuse to stage or select for deletion
 protected_packages:
   - custom-kernel-module

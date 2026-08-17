@@ -68,14 +68,15 @@ func Details(app *model.AppInfo, showPaths bool) string {
 	} else if app.Source == "cache" {
 		b.WriteString("\n" + Muted.Render("Cache / residual leftover, ready for cleanup."))
 	} else {
-		b.WriteString("\n" + Muted.Render("Press Enter to preview what will be removed."))
+		b.WriteString("\n" + Muted.Render("Enter to preview what will be deleted."))
 	}
 
 	b.WriteString("\n\n" + DangerText.Render("⚠ Removal cannot be undone"))
 	if !app.Protected {
 		b.WriteString("\n\n" +
-			lipgloss.NewStyle().Bold(true).Foreground(danger).Render("[Enter: Stage Preview]") +
-			"  " + lipgloss.NewStyle().Foreground(primary).Render("[Space: Select]"))
+			DangerText.Render("[Enter: Preview]") + "  " +
+			DangerText.Render("[Enter again: DELETE]") + "  " +
+			lipgloss.NewStyle().Foreground(primary).Render("[Space: Select]"))
 	} else {
 		b.WriteString("\n\n" + DangerText.Render("Deep clean refused for protected system components."))
 	}

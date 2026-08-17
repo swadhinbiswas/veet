@@ -50,9 +50,20 @@ type Uninstaller struct {
 
 // New builds an Uninstaller bound to the real filesystem.
 func New(home string, log *history.Log, protected map[string]bool) *Uninstaller {
+	return NewWithFSAndCmd(afero.NewOsFs(), RealCmder{}, home, log, protected)
+}
+
+// NewWithFSAndCmd builds an Uninstaller with custom FS and Cmder.
+func NewWithFSAndCmd(fs afero.Fs, cmd Cmder, home string, log *history.Log, protected map[string]bool) *Uninstaller {
+	if fs == nil {
+		fs = afero.NewOsFs()
+	}
+	if cmd == nil {
+		cmd = RealCmder{}
+	}
 	return &Uninstaller{
-		FS:        afero.NewOsFs(),
-		Cmd:       RealCmder{},
+		FS:        fs,
+		Cmd:       cmd,
 		Home:      home,
 		Log:       log,
 		Protected: protected,
@@ -67,6 +78,22 @@ type StageResult struct {
 
 // ErrProtected signals a refused deep-clean.
 var ErrProtected = errors.New("protected system component: deep clean refused")
+
+// isSafePath checks that a candidate path is not a critical top-level directory.
+func isSafePath(p, home string) bool {
+	p = filepath.Clean(p)
+	if p == "" || p == "." || p == "/" || p == home {
+		return false
+	}
+	critical := map[string]bool{
+		"/bin": true, "/boot": true, "/dev": true, "/etc": true, "/home": true,
+		"/lib": true, "/lib64": true, "/media": true, "/mnt": true, "/opt": true,
+		"/proc": true, "/root": true, "/run": true, "/sbin": true, "/srv": true,
+		"/sys": true, "/tmp": true, "/usr": true, "/var": true, "/var/log": true,
+		"/usr/bin": true, "/usr/share": true, "/usr/lib": true, "/usr/local": true,
+	}
+	return !critical[p]
+}
 
 // StageRemoval walks candidate config/cache/log/data/residual paths for an
 // app and fills Removable. It never touches disk — pure inspection.
@@ -109,6 +136,9 @@ func (u *Uninstaller) StageRemoval(app *model.AppInfo) error {
 	}
 
 	for _, c := range candidates {
+		if !isSafePath(c.path, u.Home) {
+			continue
+		}
 		exists, err := afero.DirExists(u.FS, c.path)
 		if err != nil || !exists {
 			continue
@@ -192,7 +222,7 @@ func RemoveCommand(app model.AppInfo, sudo bool) []string {
 	case "flatpak":
 		return []string{"flatpak", "uninstall", "-y", app.Name}
 	case "snap":
-		args = append([]string{"snap", "remove"}, args...)
+		args = append([]string{"snap", "remove", "--purge"}, args...)
 	case "npm":
 		return []string{"npm", "uninstall", "-g", app.Name}
 	case "pipx":
@@ -201,9 +231,21 @@ func RemoveCommand(app model.AppInfo, sudo bool) []string {
 		return []string{"cargo", "uninstall", app.Name}
 	case "gem":
 		return []string{"gem", "uninstall", app.Name}
+	case "brew":
+		return []string{"brew", "uninstall", app.Name}
+	case "nix":
+		return []string{"nix-env", "-e", app.Name}
 	case "go":
 		return []string{"rm", "-rf", filepath.Join(gopathBin(), app.Name)}
-	case "cache", "appimage", "system":
+	case "system":
+		if app.Name == "systemd-journal-logs" {
+			if sudo {
+				return []string{"sudo", "journalctl", "--vacuum-time=2d", "--vacuum-size=50M"}
+			}
+			return []string{"journalctl", "--vacuum-time=2d", "--vacuum-size=50M"}
+		}
+		return nil
+	case "cache", "appimage":
 		return nil
 	}
 	if sudo {
@@ -303,7 +345,7 @@ func (u *Uninstaller) Remove(ctx context.Context, app *model.AppInfo, onStep fun
 func (u *Uninstaller) userPaths(app *model.AppInfo) []string {
 	var out []string
 	for _, p := range app.Removable.Paths {
-		if !u.isUserWritable(p) {
+		if !isSafePath(p, u.Home) || !u.isUserWritable(p) {
 			continue
 		}
 		out = append(out, p)
@@ -314,7 +356,7 @@ func (u *Uninstaller) userPaths(app *model.AppInfo) []string {
 func (u *Uninstaller) elevatedPaths(app *model.AppInfo) []string {
 	var out []string
 	for _, p := range app.Removable.Paths {
-		if u.isUserWritable(p) {
+		if !isSafePath(p, u.Home) || u.isUserWritable(p) {
 			continue
 		}
 		out = append(out, p)

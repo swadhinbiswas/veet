@@ -72,25 +72,55 @@ func Exec(ctx context.Context, e Execer, name string, args ...string) (string, e
 	return out.String(), nil
 }
 
+// ProgressEvent describes a detector's state change during scan.
+type ProgressEvent struct {
+	Index  int
+	Source string
+	Status string // "starting", "done", "skipped", "error"
+	Count  int
+	Total  int
+	Err    error
+}
+
 // RunAll executes every detector concurrently and reports results.
 func RunAll(ctx context.Context, e Execer, detectors []Detector) []Runner {
+	return RunAllStreaming(ctx, e, detectors, nil)
+}
+
+// RunAllStreaming executes every detector concurrently and streams ProgressEvents to onProgress.
+func RunAllStreaming(ctx context.Context, e Execer, detectors []Detector, onProgress func(ProgressEvent)) []Runner {
 	results := make([]Runner, len(detectors))
 	var wg sync.WaitGroup
+	total := len(detectors)
 	for i, d := range detectors {
 		wg.Add(1)
 		go func(i int, d Detector) {
 			defer wg.Done()
-			res := Runner{Source: d.Source()}
+			src := d.Source()
+			if onProgress != nil {
+				onProgress(ProgressEvent{Index: i, Source: src, Status: "starting", Total: total})
+			}
+			res := Runner{Source: src}
 			if !d.Available() {
 				res.Skipped = true
 				res.Reason = "not installed"
 				results[i] = res
+				if onProgress != nil {
+					onProgress(ProgressEvent{Index: i, Source: src, Status: "skipped", Total: total})
+				}
 				return
 			}
 			apps, err := d.Detect(ctx)
 			res.Apps = apps
 			res.Err = err
 			results[i] = res
+			if onProgress != nil {
+				status := "done"
+				if err != nil {
+					status = "error"
+				}
+				onProgress(ProgressEvent{Index: i, Source: src, Status: status, Count: len(apps), Total: total, Err: err})
+			}
 		}(i, d)
 	}
 	wg.Wait()

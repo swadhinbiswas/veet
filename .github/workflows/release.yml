@@ -64,3 +64,67 @@ jobs:
           TAG_NAME: ${{ github.ref_name }}
         run: |
           curl -s "https://proxy.golang.org/github.com/swadhinbiswas/veet/@v/${TAG_NAME}.info" || true
+
+  publish-aur:
+    name: Publish to Arch User Repository (AUR)
+    needs: build-release
+    runs-on: ubuntu-latest
+    container:
+      image: archlinux:base-devel
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Install Git & OpenSSH
+        run: |
+          pacman -Syu --noconfirm git openssh curl
+
+      - name: Generate Updated PKGBUILD & .SRCINFO
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          VERSION="${TAG#v}"
+          
+          # Fetch release source tarball and compute SHA256
+          curl -sL "https://github.com/${{ github.repository }}/archive/refs/tags/${TAG}.tar.gz" -o source.tar.gz
+          CHECKSUM=$(sha256sum source.tar.gz | awk '{print $1}')
+          
+          cd aur/veet
+          sed -i "s/^pkgver=.*/pkgver=${VERSION}/" PKGBUILD
+          sed -i "s/^pkgrel=.*/pkgrel=1/" PKGBUILD
+          sed -i "s/^sha256sums=.*/sha256sums=('${CHECKSUM}')/" PKGBUILD
+          
+          # makepkg requires a non-root user
+          useradd -m builduser
+          chown -R builduser:builduser .
+          su builduser -c "makepkg --printsrcinfo" > .SRCINFO
+
+      - name: Deploy to AUR
+        env:
+          AUR_KEY: ${{ secrets.AUR_SSH_PRIVATE_KEY }}
+        run: |
+          if [ -z "$AUR_KEY" ]; then
+            echo "::warning ::AUR_SSH_PRIVATE_KEY secret is not set in GitHub Secrets. Skipping AUR automated push."
+            exit 0
+          fi
+
+          mkdir -p ~/.ssh
+          echo "$AUR_KEY" > ~/.ssh/aur_key
+          chmod 600 ~/.ssh/aur_key
+          ssh-keyscan -t ed25519,rsa aur.archlinux.org >> ~/.ssh/known_hosts
+
+          git config --global user.name "Swadhin Biswas"
+          git config --global user.email "swadhinbiswas@users.noreply.github.com"
+
+          GIT_SSH_COMMAND="ssh -i ~/.ssh/aur_key -o StrictHostKeyChecking=accept-new" git clone ssh://aur@aur.archlinux.org/veet.git /tmp/aur-repo
+          cp aur/veet/PKGBUILD aur/veet/.SRCINFO /tmp/aur-repo/
+          
+          cd /tmp/aur-repo
+          git add PKGBUILD .SRCINFO
+          if git diff --staged --quiet; then
+            echo "No changes to deploy to AUR."
+          else
+            git commit -m "chore(release): update to ${GITHUB_REF_NAME}"
+            GIT_SSH_COMMAND="ssh -i ~/.ssh/aur_key -o StrictHostKeyChecking=accept-new" git push origin master
+            echo "Successfully published ${GITHUB_REF_NAME} to AUR!"
+          fi
+

@@ -17,6 +17,8 @@ func Registry(ex Execer, home string) []Detector {
 		NewFlatpakDetector(ex),
 		NewSnapDetector(ex),
 		NewAppImageDetector(home),
+		NewBrewDetector(ex),
+		NewNixDetector(ex),
 		NewOrphanDetector(ex),
 		NewNpmDetector(ex),
 		NewPipxDetector(ex),
@@ -31,7 +33,12 @@ func Registry(ex Execer, home string) []Detector {
 // Scan runs every detector concurrently and merges results.
 // It returns all apps, skipped sources and any non-fatal errors.
 func Scan(ctx context.Context, ex Execer, home string) ([]model.AppInfo, []string, []error) {
-	results := RunAll(ctx, ex, Registry(ex, home))
+	return ScanStreaming(ctx, ex, home, nil)
+}
+
+// ScanStreaming runs every detector concurrently and streams progress events.
+func ScanStreaming(ctx context.Context, ex Execer, home string, onProgress func(ProgressEvent)) ([]model.AppInfo, []string, []error) {
+	results := RunAllStreaming(ctx, ex, Registry(ex, home), onProgress)
 	var apps []model.AppInfo
 	var skipped []string
 	var errs []error

@@ -56,7 +56,9 @@ func ProgressIdle(width int, recent []string) string {
 	var b strings.Builder
 	b.WriteString(HighlightText.Render("PROGRESS & ACTIVITY"))
 	b.WriteString("\n")
-	b.WriteString(Sub.Render("● System Ready — Space to select, Enter to preview"))
+	b.WriteString(Sub.Render("Ready — Space: select · Enter: preview"))
+	b.WriteString("\n")
+	b.WriteString(DangerText.Render("Enter again on the red screen = DELETE"))
 	b.WriteString("\n")
 	if len(recent) > 0 {
 		b.WriteString(Muted.Render("Recent:"))
@@ -89,7 +91,7 @@ func FooterKeybinds(width int) string {
 		KeyBadge.Render("1-6") + " " + Sub.Render("Cards"),
 		KeyBadge.Render("↑↓/jk") + " " + Sub.Render("Nav"),
 		KeyBadge.Render("Space") + " " + Sub.Render("Sel"),
-		KeyBadge.Render("Enter") + " " + Sub.Render("Action"),
+		KeyBadge.Render("d") + " " + lipgloss.NewStyle().Foreground(danger).Render("Delete"),
 		KeyBadge.Render("o") + " " + Sub.Render("Sort"),
 		KeyBadge.Render("p") + " " + Sub.Render("Paths"),
 		KeyBadge.Render("Tab") + " " + Sub.Render("Source"),
@@ -109,17 +111,31 @@ func FooterKeybinds(width int) string {
 
 // helpKeys renders the full keybinding reference.
 func helpKeys() string {
+	var b strings.Builder
+	b.WriteString(DangerText.Render("HOW TO UNINSTALL (DELETE) AN APP:"))
+	b.WriteString("\n")
+	b.WriteString("  " + Sub.Render("1. ↑↓/jk — move to the app,  Space — select (optional, for batch)"))
+	b.WriteString("\n")
+	b.WriteString("  " + DangerText.Render("2. d — popup: \"Really delete?\"  →  Y = delete,  N = go back"))
+	b.WriteString("\n")
+	b.WriteString("  " + Sub.Render("3. Alt: Enter — full preview of every path, Enter again to delete"))
+	b.WriteString("\n")
+	b.WriteString("  " + Muted.Render("   (Esc backs out safely; nothing is deleted until you press Y)"))
+	b.WriteString("\n\n")
+	b.WriteString(Title.Render("KEYBINDINGS"))
+	b.WriteString("\n")
 	rows := [][]string{
 		{"1 - 6", "Jump to stat category (All, Flatpak, Snap, Tools, Cache, Reclaim)"},
 		{"[ / ] or ← / →", "Cycle through top stat cards"},
 		{"↑ ↓ / j k", "Navigate the app list"},
 		{"Space", "Toggle selection on current row"},
+		{"d / D", "DELETE selected (or current) app — asks Yes/No first"},
 		{"a", "Select / deselect all filtered rows"},
 		{"o / O", "Cycle sort order (Size ↓, Name A-Z, Source, Date ↓)"},
 		{"p / P", "Toggle staged file paths inspector in details panel"},
 		{"/", "Focus fuzzy search input"},
 		{"Tab / Shift+Tab", "Cycle specific source filter (pacman, AUR, flatpak, etc.)"},
-		{"Enter", "Open details & preview, or confirm uninstall"},
+		{"Enter", "Full preview of what will be removed, Enter again to confirm"},
 		{"c", "Quick clean cache & residual files"},
 		{"e", "Export installed applications report (JSON)"},
 		{"r", "Refresh / rescan all sources"},
@@ -129,7 +145,6 @@ func helpKeys() string {
 		{"Esc", "Back out of modal or exit search"},
 		{"q / Ctrl+C", "Quit VEET"},
 	}
-	var b strings.Builder
 	for _, r := range rows {
 		b.WriteString("  " + lipgloss.NewStyle().Bold(true).Foreground(primary).Render(r[0]))
 		b.WriteString(strings.Repeat(" ", max(1, 28-lipgloss.Width(r[0]))))

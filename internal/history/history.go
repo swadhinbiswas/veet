@@ -90,3 +90,8 @@ func (l *Log) Read() ([]Entry, error) {
 	sort.Slice(entries, func(i, j int) bool { return entries[i].Time.After(entries[j].Time) })
 	return entries, nil
 }
+
+// Clear truncates the history log file.
+func (l *Log) Clear() error {
+	return afero.WriteFile(l.fs, l.path, []byte{}, 0o644)
+}

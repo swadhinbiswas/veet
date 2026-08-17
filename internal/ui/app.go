@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/charmbracelet/bubbles/progress"
 	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/charmbracelet/bubbles/viewport"
@@ -30,6 +31,7 @@ const (
 	stateScanning state = iota
 	stateReady
 	stateConfirming
+	stateConfirmDelete
 	stateUninstalling
 	stateHistory
 	stateSettings
@@ -77,14 +79,33 @@ func (s SortMode) Label() string {
 
 type startScanMsg struct{}
 type activityMsg string
+
+// ScanSourceState holds the live status of a single detector during scan.
+type ScanSourceState struct {
+	Status string // "pending", "starting", "done", "skipped", "error"
+	Count  int
+	Err    error
+}
+
+type scanProgressMsg struct {
+	ev   detector.ProgressEvent
+	pump *scanPump
+}
+
+type scanPump struct {
+	ch   chan detector.ProgressEvent
+	done chan scanDoneMsg
+}
+
 type scanDoneMsg struct {
 	apps    []model.AppInfo
 	skipped []string
 	errs    []error
 }
 type stagedBatchMsg struct {
-	apps []*model.AppInfo
-	errs []string
+	apps          []*model.AppInfo
+	errs          []string
+	confirmDelete bool
 }
 type uninstallStepMsg struct {
 	step uninstaller.Step
@@ -117,6 +138,12 @@ type Model struct {
 
 	width, height int
 	spinner       spinner.Model
+	scanBar       progress.Model
+	scanSources   map[string]ScanSourceState
+	scanCompleted int
+	scanTotal     int
+	scanStart     time.Time
+	scanPump      *scanPump
 	activity      []string // scan/refresh notes, newest last
 
 	allApps  []model.AppInfo
@@ -150,48 +177,80 @@ func New(cfg *model.Config) *Model {
 }
 
 func newModel(cfg *model.Config, un *uninstaller.Uninstaller, hlog *history.Log) *Model {
+	ApplyTheme(cfg.Theme)
 	details := viewport.New(60, 12)
 	confirm := viewport.New(80, 20)
 	hview := viewport.New(80, 20)
 	details.MouseWheelEnabled = true
 	confirm.MouseWheelEnabled = true
 	hview.MouseWheelEnabled = true
+	scanBar := progress.New(progress.WithSolidFill(Primary))
+	scanBar.Width = 50
+	scanBar.ShowPercentage = true
 	m := &Model{
-		cfg:      cfg,
-		un:       un,
-		hlog:     hlog,
-		state:    stateScanning,
-		spinner:  spinner.New(),
-		table:    NewAppTable(),
-		filter:   []string{"All Sources"},
-		details:  &details,
-		confirm:  &confirm,
-		progress: NewProgressPanel(),
-		hview:    &hview,
+		cfg:         cfg,
+		un:          un,
+		hlog:        hlog,
+		state:       stateScanning,
+		spinner:     spinner.New(),
+		scanBar:     scanBar,
+		scanSources: make(map[string]ScanSourceState),
+		scanTotal:   17,
+		scanStart:   time.Now(),
+		table:       NewAppTable(),
+		filter:      []string{"All Sources"},
+		details:     &details,
+		confirm:     &confirm,
+		progress:    NewProgressPanel(),
+		hview:       &hview,
 	}
 	m.spinner.Style = lipgloss.NewStyle().Foreground(primary)
 	m.search = textinput.New()
-	m.search.Placeholder = "type to filter..."
+	m.search.Placeholder = "type to filter (@flatpak, >100M, name)..."
 	m.search.Width = 40
 	m.search.Prompt = "Search: "
 	m.search.PromptStyle = lipgloss.NewStyle().Bold(true).Foreground(primary)
 	m.search.TextStyle = lipgloss.NewStyle().Foreground(neutral)
 	m.search.PlaceholderStyle = lipgloss.NewStyle().Foreground(mutedColor)
-	m.activity = []string{"starting detector scan..."}
+	m.activity = []string{"starting concurrent detector scan..."}
 	return m
 }
 
-// Init kicks off the first scan.
+// Init kicks off the first streaming scan.
 func (m *Model) Init() tea.Cmd {
-	return tea.Batch(m.spinner.Tick, scanCmd(m.cfg))
+	pump, cmd := startScan(m.cfg)
+	m.scanPump = pump
+	return tea.Batch(m.spinner.Tick, cmd)
 }
 
-func scanCmd(cfg *model.Config) tea.Cmd {
-	return func() tea.Msg {
+func startScan(cfg *model.Config) (*scanPump, tea.Cmd) {
+	p := &scanPump{
+		ch:   make(chan detector.ProgressEvent, 64),
+		done: make(chan scanDoneMsg, 1),
+	}
+	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 		defer cancel()
-		apps, skipped, errs := detector.Scan(ctx, detector.RealExec{}, cfg.Home)
-		return scanDoneMsg{apps: apps, skipped: skipped, errs: errs}
+		apps, skipped, errs := detector.ScanStreaming(ctx, detector.RealExec{}, cfg.Home, func(ev detector.ProgressEvent) {
+			p.ch <- ev
+		})
+		close(p.ch)
+		p.done <- scanDoneMsg{apps: apps, skipped: skipped, errs: errs}
+	}()
+	return p, p.next()
+}
+
+func (p *scanPump) next() tea.Cmd {
+	return func() tea.Msg {
+		select {
+		case ev, ok := <-p.ch:
+			if ok {
+				return scanProgressMsg{ev: ev, pump: p}
+			}
+		default:
+		}
+		done := <-p.done
+		return done
 	}
 }
 
@@ -213,8 +272,34 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case startScanMsg:
 		m.state = stateScanning
+		m.scanSources = make(map[string]ScanSourceState)
+		m.scanCompleted = 0
+		m.scanTotal = 17
+		m.scanStart = time.Now()
 		m.activity = append(m.activity, "refreshing all sources...")
-		return m, scanCmd(m.cfg)
+		pump, cmd := startScan(m.cfg)
+		m.scanPump = pump
+		return m, cmd
+
+	case scanProgressMsg:
+		if m.scanSources == nil {
+			m.scanSources = make(map[string]ScanSourceState)
+		}
+		m.scanSources[msg.ev.Source] = ScanSourceState{
+			Status: msg.ev.Status,
+			Count:  msg.ev.Count,
+			Err:    msg.ev.Err,
+		}
+		if msg.ev.Total > 0 {
+			m.scanTotal = msg.ev.Total
+		}
+		if msg.ev.Status == "done" || msg.ev.Status == "skipped" || msg.ev.Status == "error" {
+			m.scanCompleted++
+		}
+		if msg.ev.Status == "done" && msg.ev.Count > 0 {
+			m.activity = append(m.activity, fmt.Sprintf("%s: found %d package(s)", msg.ev.Source, msg.ev.Count))
+		}
+		return m, msg.pump.next()
 
 	case scanDoneMsg:
 		m.allApps = msg.apps
@@ -240,8 +325,13 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.pending = msg.apps
 		m.pendingErrs = msg.errs
 		m.table.SetApps(m.pointers)
-		m.state = stateConfirming
-		m.renderConfirm()
+		if msg.confirmDelete {
+			m.state = stateConfirmDelete
+			m.renderDeleteConfirm()
+		} else {
+			m.state = stateConfirming
+			m.renderConfirm()
+		}
 		return m, nil
 
 	case uninstallStepMsg:
@@ -297,6 +387,8 @@ func (m *Model) handleKey(msg tea.KeyMsg) tea.Cmd {
 		return m.handleReadyKey(msg)
 	case stateConfirming:
 		return m.handleConfirmKey(msg)
+	case stateConfirmDelete:
+		return m.handleDeleteConfirmKey(msg)
 	case stateUninstalling:
 		return nil // input blocked during an active uninstall
 	case stateHistory, stateSettings, stateHelp:
@@ -417,6 +509,24 @@ func (m *Model) handleReadyKey(msg tea.KeyMsg) tea.Cmd {
 			m.activity = append(m.activity, fmt.Sprintf("skipped %d protected system components", refused))
 		}
 		return nil
+	case "d", "D":
+		// Dedicated delete key: stage the selected apps (or the row under
+		// the cursor) and open the Yes/No confirmation popup.
+		apps := m.table.SelectedApps()
+		if len(apps) == 0 {
+			if app := m.table.Current(); app != nil {
+				if app.Protected {
+					m.activity = append(m.activity, "protected: "+app.Name+" is a core system component")
+					return nil
+				}
+				apps = []*model.AppInfo{app}
+			}
+		}
+		if len(apps) == 0 {
+			m.activity = append(m.activity, "nothing selected — move to an app first")
+			return nil
+		}
+		return m.stageForDelete(apps)
 	case "c":
 		var cacheApps []*model.AppInfo
 		for _, p := range m.pointers {
@@ -468,6 +578,100 @@ func (m *Model) handleConfirmKey(msg tea.KeyMsg) tea.Cmd {
 	return nil
 }
 
+// handleDeleteConfirmKey answers the "really delete?" popup:
+//   - y / Y / Enter  -> run the uninstall now
+//   - n / N / Esc / q -> back to the selection screen untouched
+func (m *Model) handleDeleteConfirmKey(msg tea.KeyMsg) tea.Cmd {
+	switch msg.String() {
+	case "y", "Y", "enter":
+		apps := m.pending
+		if len(apps) == 0 {
+			m.state = stateReady
+			return nil
+		}
+		m.pending = nil
+		m.pendingErrs = nil
+		m.state = stateUninstalling
+		m.progress.Start(fmt.Sprintf("Uninstalling %d app(s)...", len(apps)))
+		m.runStart = time.Now()
+		pump := startUninstall(m.un, apps)
+		return pump.next()
+	case "n", "N", "esc", "q":
+		// No: return to the previous selection screen, nothing deleted.
+		m.pending = nil
+		m.pendingErrs = nil
+		m.state = stateReady
+		m.activity = append(m.activity, "delete cancelled — nothing was removed")
+		return nil
+	case "j", "k", "up", "down", "pgup", "pgdown", " ", "ctrl+d", "ctrl+u", "g", "G", "home", "end":
+		vp, cmd := m.confirm.Update(msg)
+		m.confirm = &vp
+		return cmd
+	}
+	return nil
+}
+
+// renderDeleteConfirm builds the Yes/No popup content for the staged apps.
+func (m *Model) renderDeleteConfirm() {
+	var b strings.Builder
+	b.WriteString(DangerText.Render("⚠ REALLY DELETE?"))
+	b.WriteString("\n\n")
+	var totalKB int64
+	for i, app := range m.pending {
+		rem := app.Removable
+		b.WriteString("  " + SuccessText.Render("✓ ") + Title.Render(app.Name) + "  " + SourceBadge(app.Source))
+		if i < len(m.pendingErrs) && m.pendingErrs[i] != "" {
+			b.WriteString("  " + DangerText.Render(m.pendingErrs[i]))
+			b.WriteString("\n")
+			continue
+		}
+		b.WriteString("\n")
+		b.WriteString(fmt.Sprintf("     %s across %d path(s)",
+			HighlightText.Render(model.HumanSize(rem.TotalKB())), rem.FileCount()))
+		if len(rem.Elevated) > 0 {
+			b.WriteString(" " + DangerText.Render(fmt.Sprintf("(%d needs sudo)", len(rem.Elevated))))
+		}
+		b.WriteString("\n")
+		for _, p := range rem.Paths {
+			line := "       " + p
+			if isElevated(p, rem) {
+				line += " " + DangerText.Render("🔒 sudo")
+			}
+			b.WriteString(line + "\n")
+		}
+		totalKB += rem.TotalKB()
+		b.WriteString("\n")
+	}
+	b.WriteString(HighlightText.Render(fmt.Sprintf("Total: %s reclaimable — %d app(s)",
+		model.HumanSize(totalKB), len(m.pending))))
+	b.WriteString("\n\n")
+	b.WriteString(lipgloss.NewStyle().Bold(true).Foreground(success).Render("[Y] Yes, delete") +
+		"    " + lipgloss.NewStyle().Bold(true).Foreground(neutral).Render("[N] No, go back"))
+	b.WriteString("\n")
+	m.confirm.SetContent(b.String())
+}
+
+// renderDeleteConfirmOverlay draws the popup over the main view.
+func (m *Model) renderDeleteConfirmOverlay() string {
+	w := m.width - 12
+	h := m.height - 14
+	if w < 56 {
+		w = 56
+	}
+	if h < 10 {
+		h = 10
+	}
+	m.confirm.Width = w - 6
+	m.confirm.Height = h - 4
+	box := lipgloss.NewStyle().
+		Border(lipgloss.DoubleBorder()).
+		BorderForeground(danger).
+		Padding(1, 2).
+		Width(w).
+		Render(m.confirm.View())
+	return lipgloss.NewStyle().Width(m.width).Align(lipgloss.Center).Render(box)
+}
+
 func (m *Model) handleOverlayKey(msg tea.KeyMsg) tea.Cmd {
 	switch msg.String() {
 	case "ctrl+c", "q":
@@ -475,6 +679,13 @@ func (m *Model) handleOverlayKey(msg tea.KeyMsg) tea.Cmd {
 	case "esc", "h", "?", "enter":
 		m.state = stateReady
 		return nil
+	case "c", "C":
+		if m.state == stateHistory {
+			_ = m.hlog.Clear()
+			m.hview.SetContent(renderHistory(nil, nil))
+			m.activity = append(m.activity, "audit history cleared")
+			return nil
+		}
 	case "l":
 		return func() tea.Msg {
 			entries, err := m.hlog.Read()
@@ -493,6 +704,16 @@ func (m *Model) handleOverlayKey(msg tea.KeyMsg) tea.Cmd {
 
 // stageApps computes the deep-clean preview for apps before confirmation.
 func (m *Model) stageApps(apps []*model.AppInfo) tea.Cmd {
+	return m.stage(apps, false)
+}
+
+// stageForDelete stages apps and opens the Yes/No delete popup instead of
+// the full preview screen.
+func (m *Model) stageForDelete(apps []*model.AppInfo) tea.Cmd {
+	return m.stage(apps, true)
+}
+
+func (m *Model) stage(apps []*model.AppInfo, confirmDelete bool) tea.Cmd {
 	m.activity = append(m.activity, fmt.Sprintf("staging deep-clean preview for %d app(s)...", len(apps)))
 	return func() tea.Msg {
 		var errs []string
@@ -505,7 +726,7 @@ func (m *Model) stageApps(apps []*model.AppInfo) tea.Cmd {
 				}
 			}
 		}
-		return stagedBatchMsg{apps: apps, errs: errs}
+		return stagedBatchMsg{apps: apps, errs: errs, confirmDelete: confirmDelete}
 	}
 }
 
@@ -598,7 +819,7 @@ func (m *Model) rebuildFilter() {
 		seen[a.Source] = true
 	}
 	m.filter = []string{"All Sources"}
-	for _, s := range []string{"apt", "dnf", "pacman", "aur", "zypper", "flatpak", "snap", "appimage", "orphan", "npm", "pipx", "cargo", "gem", "go", "cache", "system"} {
+	for _, s := range []string{"apt", "dnf", "pacman", "aur", "zypper", "flatpak", "snap", "appimage", "brew", "nix", "orphan", "npm", "pipx", "cargo", "gem", "go", "cache", "system"} {
 		if seen[s] {
 			m.filter = append(m.filter, s)
 		}
@@ -629,6 +850,70 @@ func fuzzyMatch(query, name string) bool {
 	return i == len(q)
 }
 
+type parsedQuery struct {
+	sourceFilter string
+	minSizeKB    int64
+	maxSizeKB    int64
+	protected    *bool
+	text         string
+}
+
+func parseSearchQuery(raw string) parsedQuery {
+	fields := strings.Fields(raw)
+	var textParts []string
+	var pq parsedQuery
+
+	for _, f := range fields {
+		lower := strings.ToLower(f)
+		if strings.HasPrefix(lower, "@") {
+			pq.sourceFilter = strings.TrimPrefix(lower, "@")
+		} else if strings.HasPrefix(lower, "source:") {
+			pq.sourceFilter = strings.TrimPrefix(lower, "source:")
+		} else if strings.HasPrefix(lower, "protected:") {
+			val := strings.TrimPrefix(lower, "protected:")
+			b := val == "true" || val == "yes" || val == "1"
+			pq.protected = &b
+		} else if strings.HasPrefix(lower, ">") || strings.HasPrefix(lower, "size:>") {
+			val := strings.TrimPrefix(strings.TrimPrefix(lower, "size:"), ">")
+			pq.minSizeKB = detectorParseHumanSize(val)
+		} else if strings.HasPrefix(lower, "<") || strings.HasPrefix(lower, "size:<") {
+			val := strings.TrimPrefix(strings.TrimPrefix(lower, "size:"), "<")
+			pq.maxSizeKB = detectorParseHumanSize(val)
+		} else {
+			textParts = append(textParts, f)
+		}
+	}
+	pq.text = strings.Join(textParts, " ")
+	return pq
+}
+
+func detectorParseHumanSize(s string) int64 {
+	s = strings.TrimSpace(strings.ToUpper(s))
+	if s == "" {
+		return 0
+	}
+	var num float64
+	var unit string
+	n, _ := fmt.Sscanf(s, "%f%s", &num, &unit)
+	if n < 1 || num <= 0 {
+		return 0
+	}
+	switch {
+	case strings.HasPrefix(unit, "T"):
+		return int64(num * 1024 * 1024 * 1024)
+	case strings.HasPrefix(unit, "G"):
+		return int64(num * 1024 * 1024)
+	case strings.HasPrefix(unit, "M"):
+		return int64(num * 1024)
+	case strings.HasPrefix(unit, "K"):
+		return int64(num)
+	case strings.HasPrefix(unit, "B"):
+		return int64(num) / 1024
+	default:
+		return int64(num * 1024)
+	}
+}
+
 func (m *Model) setCategory(cat CategoryFilter) {
 	m.catFilter = cat
 	m.filterAt = 0
@@ -644,7 +929,7 @@ func (m *Model) matchesCategory(a *model.AppInfo) bool {
 	case CatSnap:
 		return a.Source == "snap"
 	case CatGlobalTools:
-		return a.Source == "npm" || a.Source == "pipx" || a.Source == "cargo" || a.Source == "gem" || a.Source == "go"
+		return a.Source == "npm" || a.Source == "pipx" || a.Source == "cargo" || a.Source == "gem" || a.Source == "go" || a.Source == "brew" || a.Source == "nix"
 	case CatCache:
 		return a.Source == "cache"
 	case CatReclaimable:
@@ -654,18 +939,31 @@ func (m *Model) matchesCategory(a *model.AppInfo) bool {
 }
 
 func (m *Model) applyFilter() {
-	query := strings.TrimSpace(m.search.Value())
+	pq := parseSearchQuery(m.search.Value())
 	src := m.filter[m.filterAt]
+	if pq.sourceFilter != "" {
+		src = pq.sourceFilter
+	}
+
 	var ptrs []*model.AppInfo
 	for i := range m.allApps {
 		a := &m.allApps[i]
 		if !m.matchesCategory(a) {
 			continue
 		}
-		if src != "All Sources" && a.Source != src {
+		if src != "All Sources" && !strings.EqualFold(a.Source, src) {
 			continue
 		}
-		if query != "" && !fuzzyMatch(query, a.Name) {
+		if pq.protected != nil && a.Protected != *pq.protected {
+			continue
+		}
+		if pq.minSizeKB > 0 && a.InstallSizeKB < pq.minSizeKB {
+			continue
+		}
+		if pq.maxSizeKB > 0 && a.InstallSizeKB > pq.maxSizeKB {
+			continue
+		}
+		if pq.text != "" && !fuzzyMatch(pq.text, a.Name) {
 			continue
 		}
 		ptrs = append(ptrs, a)
@@ -788,10 +1086,12 @@ func (m *Model) View() string {
 		return m.renderMain()
 	case stateConfirming:
 		return m.renderMain() + "\n" + m.renderConfirmOverlay()
+	case stateConfirmDelete:
+		return m.renderMain() + "\n" + m.renderDeleteConfirmOverlay()
 	case stateUninstalling:
 		return m.renderMain()
 	case stateHistory:
-		return m.renderMain() + "\n" + m.renderOverlay("HISTORY LOG", m.hview.View(), "Esc to close")
+		return m.renderMain() + "\n" + m.renderOverlay("HISTORY LOG", m.hview.View(), "Esc to close · [c] clear history")
 	case stateSettings:
 		return m.renderMain() + "\n" + m.renderOverlay("SETTINGS", m.renderSettings(), "Esc to close")
 	case stateHelp:
@@ -801,16 +1101,108 @@ func (m *Model) View() string {
 }
 
 func (m *Model) renderScan() string {
+	w := m.width
+	if w < 60 {
+		w = 60
+	}
+	m.scanBar.Width = min(60, w-10)
+
 	var b strings.Builder
 	b.WriteString(m.renderHeader())
 	b.WriteString("\n\n")
-	b.WriteString(m.spinner.View() + " " + HighlightText.Render("Scanning all sources..."))
-	b.WriteString("\n\n")
-	for _, line := range lastN(m.activity, m.height-8) {
-		b.WriteString(Muted.Render(line))
-		b.WriteString("\n")
+
+	// 1. Live Banner & Progress Bar
+	elapsed := int(time.Since(m.scanStart).Seconds())
+	pct := float64(0)
+	if m.scanTotal > 0 {
+		pct = float64(m.scanCompleted) / float64(m.scanTotal)
 	}
-	b.WriteString("\n" + Muted.Render("q: quit"))
+	if pct > 1 {
+		pct = 1
+	}
+	barView := m.scanBar.ViewAs(pct)
+
+	titleLine := fmt.Sprintf("%s %s %s",
+		m.spinner.View(),
+		HighlightText.Render("SCANNING SYSTEM SOURCES & DETECTORS..."),
+		InfoText.Render(fmt.Sprintf("(%d/%d completed · %02d:%02ds)", m.scanCompleted, m.scanTotal, elapsed/60, elapsed%60)))
+	b.WriteString(" " + titleLine + "\n")
+	b.WriteString(" " + barView + "\n\n")
+
+	// 2. Matrix Grid of all detector tiles
+	sources := []string{
+		"apt", "dnf", "pacman", "aur", "zypper", "flatpak",
+		"snap", "appimage", "brew", "nix", "orphan", "npm",
+		"pipx", "cargo", "gem", "go", "cache", "system",
+	}
+
+	cols := 3
+	if w >= 110 {
+		cols = 4
+	} else if w < 75 {
+		cols = 2
+	}
+	colW := (w - 6) / cols
+	if colW < 20 {
+		colW = 20
+	}
+
+	var rowCells []string
+	for i, s := range sources {
+		meta := model.Meta(s)
+		st, ok := m.scanSources[s]
+		statusLabel := Muted.Render("○ pending")
+		borderClr := panelBorder
+		if ok {
+			switch st.Status {
+			case "starting", "scanning":
+				statusLabel = HighlightText.Render("● scanning...")
+				borderClr = highlight
+			case "done":
+				if st.Count > 0 {
+					statusLabel = SuccessText.Render(fmt.Sprintf("✓ %d apps", st.Count))
+					borderClr = success
+				} else {
+					statusLabel = Muted.Render("✓ 0 found")
+					borderClr = panelBorder
+				}
+			case "skipped":
+				statusLabel = Muted.Render("– skipped")
+			case "error":
+				statusLabel = DangerText.Render("✗ error")
+				borderClr = danger
+			}
+		}
+
+		iconBadge := lipgloss.NewStyle().Foreground(lipgloss.Color(meta.Color)).Bold(true).Render(meta.Icon + " " + meta.Label)
+		tileContent := iconBadge + " " + statusLabel
+		tile := lipgloss.NewStyle().
+			Border(lipgloss.RoundedBorder()).
+			BorderForeground(borderClr).
+			Width(colW - 2).
+			Padding(0, 1).
+			Render(Truncate(tileContent, colW-4))
+		rowCells = append(rowCells, tile)
+
+		if len(rowCells) == cols || i == len(sources)-1 {
+			b.WriteString(" " + lipgloss.JoinHorizontal(lipgloss.Top, rowCells...) + "\n")
+			rowCells = nil
+		}
+	}
+
+	b.WriteString("\n")
+
+	// 3. Live activity stream
+	b.WriteString(" " + HighlightText.Render("LIVE ACTIVITY STREAM:") + "\n")
+	availLines := m.height - 22
+	if availLines < 3 {
+		availLines = 3
+	}
+	for _, line := range lastN(m.activity, availLines) {
+		b.WriteString("   " + Muted.Render("• "+Truncate(line, w-8)) + "\n")
+	}
+
+	b.WriteString("\n " + Muted.Render("[q/Ctrl+C] Quit  [r] Rescan"))
 	return b.String()
 }
 
@@ -883,8 +1275,8 @@ func (m *Model) renderMain() string {
 	b.WriteString("\n")
 
 	// middle split: table | details
-	// Budget: Top (6) + Middle (innerTableH + 3) + Bottom (8) + Summary (1) + Footer (1) = innerTableH + 19
-	innerTableH := h - 19
+	// Budget: Top (6) + Middle (innerTableH + 3) + Bottom (10) + Summary (1) + Footer (1) = innerTableH + 21
+	innerTableH := h - 21
 	if innerTableH < 3 {
 		innerTableH = 3
 	}

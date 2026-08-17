@@ -11,6 +11,8 @@ import (
 type Config struct {
 	// ProtectedPackages are extra names never staged for deep clean.
 	ProtectedPackages []string
+	// Theme is the TUI color palette name ("cyan", "catppuccin", "nord", "dracula", "gruvbox", "tokyo-night", "monokai").
+	Theme string
 	// Home is the user's home directory (overridable for tests).
 	Home string
 	// DataDir stores history.log etc.
@@ -29,6 +31,7 @@ func DefaultConfig() *Config {
 		Home:              home,
 		ConfigDir:         filepath.Join(home, ".config", "veet"),
 		DataDir:           filepath.Join(home, ".local", "share", "veet"),
+		Theme:             "cyan",
 		ProtectedPackages: nil,
 	}
 }
@@ -40,6 +43,7 @@ func (c *Config) Load() error {
 	v.SetConfigType("yaml")
 	v.AddConfigPath(c.ConfigDir)
 	v.SetDefault("protected_packages", []string{})
+	v.SetDefault("theme", "cyan")
 
 	if err := v.ReadInConfig(); err != nil {
 		if _, ok := err.(viper.ConfigFileNotFoundError); ok {
@@ -48,6 +52,7 @@ func (c *Config) Load() error {
 		return err
 	}
 	c.ProtectedPackages = v.GetStringSlice("protected_packages")
+	c.Theme = v.GetString("theme")
 	return nil
 }
 

@@ -78,6 +78,8 @@ var SourceMetaByID = map[string]SourceMeta{
 	"gem":      {Label: "gem", Icon: "💎", Color: "#EC4899"},
 	"go":       {Label: "go install", Icon: "🐹", Color: "#00E5FF"},
 	"appimage": {Label: "AppImage", Icon: "📦", Color: "#38BDF8"},
+	"brew":     {Label: "Homebrew", Icon: "🍺", Color: "#F59E0B"},
+	"nix":      {Label: "Nix", Icon: "❄", Color: "#38BDF8"},
 	"orphan":   {Label: "Orphan", Icon: "🍂", Color: "#F59E0B"},
 	"system":   {Label: "System Log", Icon: "📋", Color: "#A78BFA"},
 	"cache":    {Label: "Cache & Logs", Icon: "🧹", Color: "#EAB308"},

@@ -194,24 +194,55 @@ func TestRemovePackageFailureAbortsFiles(t *testing.T) {
 func TestRemoveCommandTable(t *testing.T) {
 	cases := []struct {
 		src  string
+		name string
 		want string
 	}{
-		{"apt", "sudo apt purge -y x"},
-		{"dnf", "sudo dnf remove -y x"},
-		{"pacman", "sudo pacman -Rns --noconfirm x"},
-		{"aur", "sudo pacman -Rns --noconfirm x"},
-		{"zypper", "sudo zypper remove -y x"},
-		{"flatpak", "flatpak uninstall -y x"},
-		{"snap", "sudo snap remove x"},
-		{"npm", "npm uninstall -g x"},
-		{"pipx", "pipx uninstall x"},
-		{"cargo", "cargo uninstall x"},
-		{"gem", "gem uninstall x"},
+		{"apt", "x", "sudo apt purge -y x"},
+		{"dnf", "x", "sudo dnf remove -y x"},
+		{"pacman", "x", "sudo pacman -Rns --noconfirm x"},
+		{"aur", "x", "sudo pacman -Rns --noconfirm x"},
+		{"zypper", "x", "sudo zypper remove -y x"},
+		{"flatpak", "x", "flatpak uninstall -y x"},
+		{"snap", "x", "sudo snap remove --purge x"},
+		{"npm", "x", "npm uninstall -g x"},
+		{"pipx", "x", "pipx uninstall x"},
+		{"cargo", "x", "cargo uninstall x"},
+		{"gem", "x", "gem uninstall x"},
+		{"brew", "x", "brew uninstall x"},
+		{"nix", "x", "nix-env -e x"},
+		{"system", "systemd-journal-logs", "sudo journalctl --vacuum-time=2d --vacuum-size=50M"},
 	}
 	for _, c := range cases {
-		got := strings.Join(RemoveCommand(model.AppInfo{Name: "x", Source: c.src}, true), " ")
+		got := strings.Join(RemoveCommand(model.AppInfo{Name: c.name, Source: c.src}, true), " ")
 		if got != c.want {
-			t.Errorf("RemoveCommand(%s) = %q, want %q", c.src, got, c.want)
+			t.Errorf("RemoveCommand(%s, %s) = %q, want %q", c.src, c.name, got, c.want)
+		}
+	}
+}
+
+func TestIsSafePath(t *testing.T) {
+	home := "/home/user"
+	cases := []struct {
+		path string
+		safe bool
+	}{
+		{"/", false},
+		{"/etc", false},
+		{"/var", false},
+		{"/var/log", false},
+		{"/usr", false},
+		{"/usr/bin", false},
+		{"/home/user", false},
+		{"", false},
+		{".", false},
+		{"/home/user/.config/foo", true},
+		{"/home/user/.cache/foo", true},
+		{"/var/log/mycustomapp", true},
+		{"/etc/mycustomapp", true},
+	}
+	for _, c := range cases {
+		if got := isSafePath(c.path, home); got != c.safe {
+			t.Errorf("isSafePath(%q) = %v, want %v", c.path, got, c.safe)
 		}
 	}
 }
