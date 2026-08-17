@@ -2,6 +2,7 @@ package ui
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -301,6 +302,9 @@ func TestDeleteKeyFlowYes(t *testing.T) {
 	}
 	// Yes -> uninstall starts
 	cmd = m.handleKey(keyMsg("y"))
+	msg = runCmd(cmd)
+	m2, cmd = m.Update(msg)
+	m = m2.(*Model)
 	if m.state != stateUninstalling {
 		t.Fatalf("after y state = %d, want stateUninstalling", m.state)
 	}
@@ -436,6 +440,17 @@ func TestSudoPasswordModalFlow(t *testing.T) {
 		t.Fatal("expected error on empty password")
 	}
 
+	// Sudo auth failure
+	m.sudoInput.SetValue("wrongpass")
+	m2, _ := m.Update(sudoAuthMsg{err: errors.New("auth failed")})
+	m = m2.(*Model)
+	if m.state != stateSudoPassword {
+		t.Fatalf("state = %d, want stateSudoPassword on auth failure", m.state)
+	}
+	if m.sudoError != "Incorrect password, please try again." {
+		t.Fatalf("unexpected error text: %s", m.sudoError)
+	}
+
 	// Esc should cancel
 	m.handleKey(tea.KeyMsg{Type: tea.KeyEsc})
 	if m.state != stateReady {
@@ -443,6 +458,17 @@ func TestSudoPasswordModalFlow(t *testing.T) {
 	}
 	if len(m.pending) != 0 {
 		t.Fatal("expected pending apps to be cleared")
+	}
+
+	// Sudo auth success flow
+	m.pending = []*model.AppInfo{
+		{Name: "nginx", Source: "apt", InstallSizeKB: 1024},
+	}
+	m.state = stateSudoPassword
+	m2, _ = m.Update(sudoAuthMsg{err: nil})
+	m = m2.(*Model)
+	if m.state != stateUninstalling {
+		t.Fatalf("state = %d, want stateUninstalling on auth success", m.state)
 	}
 }
 

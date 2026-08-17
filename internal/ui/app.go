@@ -121,6 +121,12 @@ type historyMsg struct {
 	entries []history.Entry
 	err     error
 }
+type sudoAuthMsg struct {
+	err error
+}
+type sudoCacheCheckMsg struct {
+	cached bool
+}
 
 type uninstallResult struct {
 	app     *model.AppInfo
@@ -389,6 +395,27 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.state = stateHistory
 		return m, nil
 
+	case sudoCacheCheckMsg:
+		if msg.cached {
+			return m, m.proceedWithUninstall()
+		}
+		m.state = stateSudoPassword
+		m.sudoError = ""
+		m.sudoInput.SetValue("")
+		return m, m.sudoInput.Focus()
+
+	case sudoAuthMsg:
+		if msg.err != nil {
+			m.state = stateSudoPassword
+			m.sudoError = "Incorrect password, please try again."
+			m.sudoInput.SetValue("")
+			return m, m.sudoInput.Focus()
+		}
+		m.sudoInput.Blur()
+		m.sudoInput.SetValue("")
+		m.sudoError = ""
+		return m, m.proceedWithUninstall()
+
 	case activityMsg:
 		m.activity = append(m.activity, string(msg))
 		return m, nil
@@ -617,11 +644,8 @@ func (m *Model) confirmAndStartUninstall() tea.Cmd {
 		m.state = stateReady
 		return nil
 	}
-	if requiresSudo(apps) && !m.isSudoCached() {
-		m.state = stateSudoPassword
-		m.sudoError = ""
-		m.sudoInput.SetValue("")
-		return m.sudoInput.Focus()
+	if requiresSudo(apps) {
+		return checkSudoCachedCmd(m.un)
 	}
 	return m.proceedWithUninstall()
 }
@@ -654,21 +678,46 @@ func (m *Model) handleSudoPasswordKey(msg tea.KeyMsg) tea.Cmd {
 			m.sudoError = "Password cannot be empty."
 			return nil
 		}
-		cmd := exec.Command("sudo", "-S", "-p", "", "-v")
-		cmd.Stdin = strings.NewReader(pass + "\n")
-		if err := cmd.Run(); err != nil {
-			m.sudoError = "Incorrect password, please try again."
-			m.sudoInput.SetValue("")
-			return nil
-		}
-		m.sudoInput.Blur()
-		m.sudoInput.SetValue("")
-		m.sudoError = ""
-		return m.proceedWithUninstall()
+		m.sudoError = "Authenticating..."
+		return verifySudoPasswordCmd(pass)
 	}
 	var cmd tea.Cmd
 	m.sudoInput, cmd = m.sudoInput.Update(msg)
 	return cmd
+}
+
+func verifySudoPasswordCmd(pass string) tea.Cmd {
+	return func() tea.Msg {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		cmd := exec.CommandContext(ctx, "sudo", "-S", "-p", "", "-v")
+		cmd.Stdin = strings.NewReader(pass + "\n")
+		err := cmd.Run()
+		return sudoAuthMsg{err: err}
+	}
+}
+
+func isSudoCached(un *uninstaller.Uninstaller) bool {
+	if un != nil {
+		if _, isReal := un.Cmd.(uninstaller.RealCmder); !isReal {
+			return true
+		}
+	}
+	if os.Geteuid() == 0 {
+		return true
+	}
+	if _, err := exec.LookPath("sudo"); err != nil {
+		return true
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	return exec.CommandContext(ctx, "sudo", "-n", "true").Run() == nil
+}
+
+func checkSudoCachedCmd(un *uninstaller.Uninstaller) tea.Cmd {
+	return func() tea.Msg {
+		return sudoCacheCheckMsg{cached: isSudoCached(un)}
+	}
 }
 
 func requiresSudo(apps []*model.AppInfo) bool {
@@ -685,19 +734,6 @@ func requiresSudo(apps []*model.AppInfo) bool {
 		}
 	}
 	return false
-}
-
-func (m *Model) isSudoCached() bool {
-	if _, isReal := m.un.Cmd.(uninstaller.RealCmder); !isReal {
-		return true
-	}
-	if os.Geteuid() == 0 {
-		return true
-	}
-	if _, err := exec.LookPath("sudo"); err != nil {
-		return true
-	}
-	return exec.Command("sudo", "-n", "true").Run() == nil
 }
 
 // renderDeleteConfirm builds the Yes/No popup content for the staged apps.
