@@ -4,6 +4,7 @@ on:
   push:
     tags:
       - 'v*'
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -88,14 +89,25 @@ jobs:
           curl -sL "https://github.com/${{ github.repository }}/archive/refs/tags/${TAG}.tar.gz" -o source.tar.gz
           CHECKSUM=$(sha256sum source.tar.gz | awk '{print $1}')
           
+          # 1. Update veet (stable release)
           cd aur/veet
           sed -i "s/^pkgver=.*/pkgver=${VERSION}/" PKGBUILD
           sed -i "s/^pkgrel=.*/pkgrel=1/" PKGBUILD
           sed -i "s/^sha256sums=.*/sha256sums=('${CHECKSUM}')/" PKGBUILD
           
+          # 2. Update veet-git
+          cd ../veet-git
+          sed -i "s/^pkgver=.*/pkgver=${VERSION}/" PKGBUILD
+          sed -i "s/^pkgrel=.*/pkgrel=1/" PKGBUILD
+          
           # makepkg requires a non-root user
           useradd -m builduser
-          chown -R builduser:builduser .
+          chown -R builduser:builduser /__w/UNIXPURGE/UNIXPURGE/aur
+          
+          cd /__w/UNIXPURGE/UNIXPURGE/aur/veet
+          su builduser -c "makepkg --printsrcinfo" > .SRCINFO
+          
+          cd /__w/UNIXPURGE/UNIXPURGE/aur/veet-git
           su builduser -c "makepkg --printsrcinfo" > .SRCINFO
 
       - name: Deploy to AUR
@@ -115,16 +127,31 @@ jobs:
           git config --global user.name "Swadhin Biswas"
           git config --global user.email "swadhinbiswas@users.noreply.github.com"
 
-          GIT_SSH_COMMAND="ssh -i ~/.ssh/aur_key -o StrictHostKeyChecking=accept-new" git clone ssh://aur@aur.archlinux.org/veet.git /tmp/aur-repo
-          cp aur/veet/PKGBUILD aur/veet/.SRCINFO /tmp/aur-repo/
-          
-          cd /tmp/aur-repo
-          git add PKGBUILD .SRCINFO
-          if git diff --staged --quiet; then
-            echo "No changes to deploy to AUR."
-          else
-            git commit -m "chore(release): update to ${GITHUB_REF_NAME}"
-            GIT_SSH_COMMAND="ssh -i ~/.ssh/aur_key -o StrictHostKeyChecking=accept-new" git push origin master
-            echo "Successfully published ${GITHUB_REF_NAME} to AUR!"
+          # Deploy veet (stable release package)
+          if GIT_SSH_COMMAND="ssh -i ~/.ssh/aur_key -o StrictHostKeyChecking=accept-new" git clone ssh://aur@aur.archlinux.org/veet.git /tmp/aur-veet; then
+            cp aur/veet/PKGBUILD aur/veet/.SRCINFO /tmp/aur-veet/
+            cd /tmp/aur-veet
+            git add PKGBUILD .SRCINFO
+            if git diff --staged --quiet; then
+              echo "No changes to deploy to AUR (veet)."
+            else
+              git commit -m "chore(release): update to ${GITHUB_REF_NAME}"
+              GIT_SSH_COMMAND="ssh -i ~/.ssh/aur_key -o StrictHostKeyChecking=accept-new" git push origin master
+              echo "Successfully published ${GITHUB_REF_NAME} to AUR (veet)!"
+            fi
+          fi
+
+          # Deploy veet-git (VCS package) if repository exists
+          if GIT_SSH_COMMAND="ssh -i ~/.ssh/aur_key -o StrictHostKeyChecking=accept-new" git clone ssh://aur@aur.archlinux.org/veet-git.git /tmp/aur-veet-git; then
+            cp aur/veet-git/PKGBUILD aur/veet-git/.SRCINFO /tmp/aur-veet-git/
+            cd /tmp/aur-veet-git
+            git add PKGBUILD .SRCINFO
+            if git diff --staged --quiet; then
+              echo "No changes to deploy to AUR (veet-git)."
+            else
+              git commit -m "chore(release): update to ${GITHUB_REF_NAME}"
+              GIT_SSH_COMMAND="ssh -i ~/.ssh/aur_key -o StrictHostKeyChecking=accept-new" git push origin master
+              echo "Successfully published ${GITHUB_REF_NAME} to AUR (veet-git)!"
+            fi
           fi
 
