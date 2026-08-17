@@ -1,15 +1,13 @@
 # Maintainer: Swadhin Biswas <swadhinbiswas@users.noreply.github.com>
-pkgname=veet-git
-pkgver=1.0.3.r0.g83d43ef
+pkgname=veet
+pkgver=1.0.3
 pkgrel=1
-pkgdesc="Universal Linux application uninstaller & deep-clean residual purger (VCS git version)"
+pkgdesc="Universal Linux application uninstaller & deep-clean residual purger"
 arch=('x86_64' 'aarch64')
 url="https://github.com/swadhinbiswas/veet"
 license=('MIT')
 depends=('glibc')
-makedepends=('git' 'go')
-provides=('veet')
-conflicts=('veet' 'veet-bin')
+makedepends=('go')
 optdepends=(
     'ttf-nerd-fonts-symbols: for glyph icons without patching base font'
     'ttf-jetbrains-mono-nerd: recommended modern mono font with glyph icons'
@@ -17,17 +15,11 @@ optdepends=(
     'snapd: for Snap package management'
     'pacman: for Arch package management'
 )
-source=("git+$url.git")
-sha256sums=('SKIP')
-
-pkgver() {
-    cd "veet"
-    git describe --long --tags --abbrev=7 2>/dev/null | sed 's/^v//;s/\([^-]*-g\)/r\1/;s/-/./g' ||
-    printf "r%s.%s" "$(git rev-list --count HEAD)" "$(git rev-parse --short=7 HEAD)"
-}
+source=("$pkgname-$pkgver.tar.gz::$url/archive/refs/tags/v$pkgver.tar.gz")
+sha256sums=('af2d46c849cd5ee49e30169bf6ec2f309d285bc1db69ac7a5d5ff77b3be02527')
 
 build() {
-    cd "veet"
+    cd "$pkgname-$pkgver"
     export CGO_ENABLED=0
     export GOFLAGS="-buildmode=pie -trimpath -modcacherw"
     export LDFLAGS="-s -w -X main.version=$pkgver"
@@ -35,12 +27,12 @@ build() {
 }
 
 check() {
-    cd "veet"
+    cd "$pkgname-$pkgver"
     go test ./...
 }
 
 package() {
-    cd "veet"
+    cd "$pkgname-$pkgver"
     install -Dm755 veet "$pkgdir/usr/bin/veet"
     install -Dm644 LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
     install -Dm644 README.md "$pkgdir/usr/share/doc/$pkgname/README.md"

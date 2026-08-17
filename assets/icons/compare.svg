@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="20" height="20" fill="none">
+  <defs>
+    <linearGradient id="compGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#06B6D4" />
+      <stop offset="100%" stop-color="#10B981" />
+    </linearGradient>
+  </defs>
+  <line x1="18" y1="20" x2="18" y2="10" stroke="url(#compGrad)" stroke-width="2" stroke-linecap="round"/>
+  <line x1="12" y1="20" x2="12" y2="4" stroke="url(#compGrad)" stroke-width="2" stroke-linecap="round"/>
+  <line x1="6" y1="20" x2="6" y2="14" stroke="url(#compGrad)" stroke-width="2" stroke-linecap="round"/>
+  <path d="M3 20H21" stroke="url(#compGrad)" stroke-width="2" stroke-linecap="round"/>
+</svg>

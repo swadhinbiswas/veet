@@ -82,33 +82,30 @@ jobs:
 
       - name: Generate Updated PKGBUILD & .SRCINFO
         run: |
+          set -e
           TAG="${GITHUB_REF_NAME}"
           VERSION="${TAG#v}"
           
           # Fetch release source tarball and compute SHA256
-          curl -sL "https://github.com/${{ github.repository }}/archive/refs/tags/${TAG}.tar.gz" -o source.tar.gz
-          CHECKSUM=$(sha256sum source.tar.gz | awk '{print $1}')
+          curl -sL "https://github.com/${{ github.repository }}/archive/refs/tags/${TAG}.tar.gz" -o /tmp/source.tar.gz
+          CHECKSUM=$(sha256sum /tmp/source.tar.gz | awk '{print $1}')
           
           # 1. Update veet (stable release)
-          cd aur/veet
-          sed -i "s/^pkgver=.*/pkgver=${VERSION}/" PKGBUILD
-          sed -i "s/^pkgrel=.*/pkgrel=1/" PKGBUILD
-          sed -i "s/^sha256sums=.*/sha256sums=('${CHECKSUM}')/" PKGBUILD
+          sed -i "s/^pkgver=.*/pkgver=${VERSION}/" aur/veet/PKGBUILD
+          sed -i "s/^pkgrel=.*/pkgrel=1/" aur/veet/PKGBUILD
+          sed -i "s/^sha256sums=.*/sha256sums=('${CHECKSUM}')/" aur/veet/PKGBUILD
           
           # 2. Update veet-git
-          cd ../veet-git
-          sed -i "s/^pkgver=.*/pkgver=${VERSION}/" PKGBUILD
-          sed -i "s/^pkgrel=.*/pkgrel=1/" PKGBUILD
+          sed -i "s/^pkgver=.*/pkgver=${VERSION}/" aur/veet-git/PKGBUILD
+          sed -i "s/^pkgrel=.*/pkgrel=1/" aur/veet-git/PKGBUILD
           
           # makepkg requires a non-root user
-          useradd -m builduser
-          chown -R builduser:builduser /__w/UNIXPURGE/UNIXPURGE/aur
+          useradd -m builduser 2>/dev/null || true
+          chown -R builduser:builduser "${GITHUB_WORKSPACE:-.}"
           
-          cd /__w/UNIXPURGE/UNIXPURGE/aur/veet
-          su builduser -c "makepkg --printsrcinfo" > .SRCINFO
-          
-          cd /__w/UNIXPURGE/UNIXPURGE/aur/veet-git
-          su builduser -c "makepkg --printsrcinfo" > .SRCINFO
+          # Generate .SRCINFO
+          su builduser -c "cd '${GITHUB_WORKSPACE:-.}/aur/veet' && makepkg --printsrcinfo" > aur/veet/.SRCINFO
+          su builduser -c "cd '${GITHUB_WORKSPACE:-.}/aur/veet-git' && makepkg --printsrcinfo" > aur/veet-git/.SRCINFO
 
       - name: Deploy to AUR
         env:
@@ -139,9 +136,10 @@ jobs:
               GIT_SSH_COMMAND="ssh -i ~/.ssh/aur_key -o StrictHostKeyChecking=accept-new" git push origin master
               echo "Successfully published ${GITHUB_REF_NAME} to AUR (veet)!"
             fi
+            cd "${GITHUB_WORKSPACE:-$OLDPWD}"
           fi
 
-          # Deploy veet-git (VCS package) if repository exists
+          # Deploy veet-git (VCS package)
           if GIT_SSH_COMMAND="ssh -i ~/.ssh/aur_key -o StrictHostKeyChecking=accept-new" git clone ssh://aur@aur.archlinux.org/veet-git.git /tmp/aur-veet-git; then
             cp aur/veet-git/PKGBUILD aur/veet-git/.SRCINFO /tmp/aur-veet-git/
             cd /tmp/aur-veet-git
@@ -153,5 +151,6 @@ jobs:
               GIT_SSH_COMMAND="ssh -i ~/.ssh/aur_key -o StrictHostKeyChecking=accept-new" git push origin master
               echo "Successfully published ${GITHUB_REF_NAME} to AUR (veet-git)!"
             fi
+            cd "${GITHUB_WORKSPACE:-$OLDPWD}"
           fi
 

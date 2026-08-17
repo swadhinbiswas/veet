@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="20" height="20" fill="none">
+  <defs>
+    <linearGradient id="licGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#3B82F6" />
+      <stop offset="100%" stop-color="#6366F1" />
+    </linearGradient>
+  </defs>
+  <path d="M14 2H6C4.9 2 4 2.9 4 4V20C4 21.1 4.9 22 6 22H18C19.1 22 20 21.1 20 20V8L14 2Z" stroke="url(#licGrad)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M14 2V8H20" stroke="url(#licGrad)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  <line x1="8" y1="13" x2="16" y2="13" stroke="url(#licGrad)" stroke-width="2" stroke-linecap="round"/>
+  <line x1="8" y1="17" x2="13" y2="17" stroke="url(#licGrad)" stroke-width="2" stroke-linecap="round"/>
+</svg>
