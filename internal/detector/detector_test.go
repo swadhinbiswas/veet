@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/swadhinbiswas/veet/internal/model"
@@ -152,6 +153,79 @@ func TestRunAllConcurrent(t *testing.T) {
 	}
 	if total != 2 {
 		t.Fatalf("expected 2 apps from apt, got %d", total)
+	}
+}
+
+func TestBrewDetector(t *testing.T) {
+	ex := fakeExecer{
+		paths: map[string]string{"brew": "/usr/bin/brew"},
+		cmds: map[string]string{
+			"brew list --versions": "htop 3.2.2\nripgrep 14.1.0\n",
+		},
+	}
+	d := NewBrewDetector(ex)
+	if !d.Available() {
+		t.Fatal("expected brew detector to be available")
+	}
+	apps, err := d.Detect(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(apps) != 2 {
+		t.Fatalf("expected 2 brew apps, got %d", len(apps))
+	}
+	if apps[0].Name != "htop" || apps[0].Version != "3.2.2" || apps[0].Source != "brew" {
+		t.Errorf("unexpected first app: %+v", apps[0])
+	}
+}
+
+func TestNixDetector(t *testing.T) {
+	ex := fakeExecer{
+		paths: map[string]string{"nix-env": "/usr/bin/nix-env"},
+		cmds: map[string]string{
+			"nix-env -q": "git-2.42.0\nhello-2.12.1\n",
+		},
+	}
+	d := NewNixDetector(ex)
+	if !d.Available() {
+		t.Fatal("expected nix detector to be available")
+	}
+	apps, err := d.Detect(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(apps) != 2 {
+		t.Fatalf("expected 2 nix apps, got %d", len(apps))
+	}
+	if apps[0].Name != "git" || apps[0].Version != "2.42.0" || apps[0].Source != "nix" {
+		t.Errorf("unexpected first app: %+v", apps[0])
+	}
+}
+
+func TestScanStreamingEvents(t *testing.T) {
+	ex := fakeExecer{
+		paths: map[string]string{"dpkg-query": "/usr/bin/dpkg-query"},
+		cmds: map[string]string{
+			"dpkg-query -W -f=${binary:Package}\t${Version}\t${Installed-Size}\n": "vim\t9.0\t1000\n",
+		},
+	}
+	var mu sync.Mutex
+	var events []ProgressEvent
+	apps, skipped, errs := ScanStreaming(context.Background(), ex, "/tmp/fakehome", func(ev ProgressEvent) {
+		mu.Lock()
+		events = append(events, ev)
+		mu.Unlock()
+	})
+	if len(apps) == 0 {
+		t.Fatal("expected detected apps")
+	}
+	_ = skipped
+	_ = errs
+	mu.Lock()
+	count := len(events)
+	mu.Unlock()
+	if count == 0 {
+		t.Fatal("expected progress events")
 	}
 }
 

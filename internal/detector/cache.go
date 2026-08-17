@@ -85,6 +85,8 @@ func (d *cacheDetector) Detect(ctx context.Context) ([]model.AppInfo, error) {
 
 	scanDir(filepath.Join(d.home, ".cache"), "")
 	scanDir(filepath.Join(d.home, ".local", "share"), "share/")
+	scanDir(filepath.Join(d.home, ".var", "app"), "flatpak-data/")
+	scanDir(filepath.Join(d.home, "snap"), "snap-data/")
 
 	// Orphaned dotfile directories in $HOME.
 	if entries, err := os.ReadDir(d.home); err == nil {

@@ -1,9 +1,13 @@
 package ui
 
 import (
+	"context"
+	"errors"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/spf13/afero"
 
@@ -16,10 +20,25 @@ func keyMsg(s string) tea.KeyMsg {
 	return tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(s)}
 }
 
+type fakeCmder struct {
+	ran []string
+}
+
+func (f *fakeCmder) LookPath(name string) (string, error) {
+	return "/bin/" + name, nil
+}
+
+func (f *fakeCmder) Run(ctx context.Context, name string, args ...string) error {
+	f.ran = append(f.ran, name+" "+strings.Join(args, " "))
+	return nil
+}
+
 func testModel() *Model {
 	cfg := model.DefaultConfig()
-	hlog := history.New(afero.NewMemMapFs(), "/tmp/history.log")
-	un := uninstaller.New(cfg.Home, hlog, cfg.ProtectedSet())
+	fs := afero.NewMemMapFs()
+	hlog := history.New(fs, "/tmp/history.log")
+	cmder := &fakeCmder{}
+	un := uninstaller.NewWithFSAndCmd(fs, cmder, "/home/u", hlog, cfg.ProtectedSet())
 	m := newModel(cfg, un, hlog)
 	m.allApps = []model.AppInfo{
 		{Name: "ivpn", Version: "1.0", Source: "aur", Status: "Installed"},
@@ -248,5 +267,227 @@ func TestRenderMainSmallTerminal(t *testing.T) {
 	out := m.renderMain()
 	if got := strings.Count(out, "\n") + 1; got > m.height {
 		t.Fatalf("renderMain on 24-row terminal produced %d rows, want <= 24", got)
+	}
+}
+
+func runCmd(cmd tea.Cmd) tea.Msg {
+	if cmd == nil {
+		return nil
+	}
+	msg := cmd()
+	if batch, ok := msg.(tea.BatchMsg); ok {
+		for _, c := range batch {
+			if subMsg := runCmd(c); subMsg != nil {
+				if _, isTick := subMsg.(spinner.TickMsg); !isTick {
+					return subMsg
+				}
+			}
+		}
+	}
+	return msg
+}
+
+func TestDeleteKeyFlowYes(t *testing.T) {
+	m := testModel()
+	m.handleKey(tea.KeyMsg{Type: tea.KeySpace}) // select row 0 (ivpn)
+	cmd := m.handleKey(keyMsg("d"))
+	msg := runCmd(cmd)
+	m2, _ := m.Update(msg)
+	m = m2.(*Model)
+	if m.state != stateConfirmDelete {
+		t.Fatalf("state = %d, want stateConfirmDelete", m.state)
+	}
+	if len(m.pending) != 1 || m.pending[0].Name != "ivpn" {
+		t.Fatalf("pending apps wrong: %+v", m.pending)
+	}
+	// Yes -> uninstall starts
+	cmd = m.handleKey(keyMsg("y"))
+	msg = runCmd(cmd)
+	m2, cmd = m.Update(msg)
+	m = m2.(*Model)
+	if m.state != stateUninstalling {
+		t.Fatalf("after y state = %d, want stateUninstalling", m.state)
+	}
+	if !m.progress.Running() {
+		t.Fatal("progress should be running after y")
+	}
+	_ = cmd // pump cmd; drain it to finish
+	for i := 0; i < 20; i++ {
+		msg := runCmd(cmd)
+		m2, cmd2 := m.Update(msg)
+		m = m2.(*Model)
+		cmd = cmd2
+		if done, ok := msg.(uninstallDoneMsg); ok {
+			if len(done.results) != 1 {
+				t.Fatalf("results = %d, want 1", len(done.results))
+			}
+			if done.results[0].app.Name != "ivpn" {
+				t.Fatalf("uninstalled wrong app: %s", done.results[0].app.Name)
+			}
+			break
+		}
+	}
+	if m.state != stateReady {
+		t.Fatalf("final state = %d, want stateReady", m.state)
+	}
+}
+
+func TestDeleteKeyFlowNo(t *testing.T) {
+	m := testModel()
+	m.handleKey(tea.KeyMsg{Type: tea.KeySpace})
+	cmd := m.handleKey(keyMsg("d"))
+	m2, _ := m.Update(runCmd(cmd))
+	m = m2.(*Model)
+	if m.state != stateConfirmDelete {
+		t.Fatalf("state = %d, want stateConfirmDelete", m.state)
+	}
+	// No -> back to selection screen, nothing pending, nothing selected
+	m.handleKey(keyMsg("n"))
+	if m.state != stateReady {
+		t.Fatalf("after n state = %d, want stateReady", m.state)
+	}
+	if len(m.table.SelectedApps()) != 1 {
+		t.Fatalf("selection should survive the No answer, got %d", len(m.table.SelectedApps()))
+	}
+	if m.pending != nil {
+		t.Fatal("pending should be cleared after No")
+	}
+}
+
+func TestDeleteKeyNoSelection(t *testing.T) {
+	m := testModel()
+	// no space pressed, cursor on row 0 -> d should stage the current row
+	cmd := m.handleKey(keyMsg("d"))
+	m2, _ := m.Update(runCmd(cmd))
+	m = m2.(*Model)
+	if m.state != stateConfirmDelete {
+		t.Fatalf("state = %d, want stateConfirmDelete", m.state)
+	}
+	if len(m.pending) != 1 || m.pending[0].Name != "ivpn" {
+		t.Fatalf("pending = %+v, want current row", m.pending)
+	}
+}
+
+func TestDeleteKeyProtectedRefused(t *testing.T) {
+	m := testModel()
+	m.table.Model().SetCursor(3) // zsh is protected
+	cmd := m.handleKey(keyMsg("d"))
+	if cmd != nil {
+		t.Fatal("protected app must not open the delete popup")
+	}
+	if m.state != stateReady {
+		t.Fatalf("state = %d, want stateReady", m.state)
+	}
+}
+
+func TestSearchQueryModifiers(t *testing.T) {
+	m := testModel()
+
+	// Filter by @aur
+	m.search.SetValue("@aur")
+	m.applyFilter()
+	if m.table.Count() != 2 {
+		t.Fatalf("expected 2 AUR apps, got %d", m.table.Count())
+	}
+
+	// Filter by >10MB
+	m.allApps[2].InstallSizeKB = 102400
+	m.search.SetValue(">10M")
+	m.applyFilter()
+	if m.table.Count() != 1 || m.table.Current().Name != "neovim" {
+		t.Fatalf("expected 1 app >10M (neovim), got %d", m.table.Count())
+	}
+
+	// Filter by protected:true
+	m.search.SetValue("protected:true")
+	m.applyFilter()
+	if m.table.Count() != 1 || m.table.Current().Name != "zsh" {
+		t.Fatalf("expected 1 protected app (zsh), got %d", m.table.Count())
+	}
+}
+
+func TestTheming(t *testing.T) {
+	for name := range Palettes {
+		ApplyTheme(name)
+		if Primary == "" || Danger == "" || Success == "" {
+			t.Fatalf("theme %s resulted in empty palette colors", name)
+		}
+	}
+}
+
+func TestHistoryClearKey(t *testing.T) {
+	m := testModel()
+	_ = m.hlog.Append(history.Entry{Time: time.Now(), App: "foo", Source: "apt", Status: "ok"})
+	m.state = stateHistory
+	m.handleKey(keyMsg("c"))
+	entries, _ := m.hlog.Read()
+	if len(entries) != 0 {
+		t.Fatalf("expected history to be cleared, got %d", len(entries))
+	}
+}
+
+func TestSudoPasswordModalFlow(t *testing.T) {
+	m := testModel()
+	m.pending = []*model.AppInfo{
+		{Name: "nginx", Source: "apt", InstallSizeKB: 1024},
+	}
+	m.state = stateSudoPassword
+	m.sudoInput.SetValue("")
+
+	// Typing empty password should show error
+	m.handleKey(tea.KeyMsg{Type: tea.KeyEnter})
+	if m.sudoError == "" {
+		t.Fatal("expected error on empty password")
+	}
+
+	// Sudo auth failure
+	m.sudoInput.SetValue("wrongpass")
+	m2, _ := m.Update(sudoAuthMsg{err: errors.New("auth failed")})
+	m = m2.(*Model)
+	if m.state != stateSudoPassword {
+		t.Fatalf("state = %d, want stateSudoPassword on auth failure", m.state)
+	}
+	if m.sudoError != "Incorrect password, please try again." {
+		t.Fatalf("unexpected error text: %s", m.sudoError)
+	}
+
+	// Esc should cancel
+	m.handleKey(tea.KeyMsg{Type: tea.KeyEsc})
+	if m.state != stateReady {
+		t.Fatalf("state = %d, want stateReady on Esc", m.state)
+	}
+	if len(m.pending) != 0 {
+		t.Fatal("expected pending apps to be cleared")
+	}
+
+	// Sudo auth success flow
+	m.pending = []*model.AppInfo{
+		{Name: "nginx", Source: "apt", InstallSizeKB: 1024},
+	}
+	m.state = stateSudoPassword
+	m2, _ = m.Update(sudoAuthMsg{err: nil})
+	m = m2.(*Model)
+	if m.state != stateUninstalling {
+		t.Fatalf("state = %d, want stateUninstalling on auth success", m.state)
+	}
+}
+
+func TestRequiresSudo(t *testing.T) {
+	cases := []struct {
+		app  model.AppInfo
+		want bool
+	}{
+		{model.AppInfo{Name: "curl", Source: "apt"}, true},
+		{model.AppInfo{Name: "git", Source: "pacman"}, true},
+		{model.AppInfo{Name: "docker", Source: "snap"}, true},
+		{model.AppInfo{Name: "jan", Source: "flatpak"}, false},
+		{model.AppInfo{Name: "prettier", Source: "npm"}, false},
+		{model.AppInfo{Name: "tmux", Source: "apt", Protected: true}, false},
+	}
+	for _, c := range cases {
+		got := requiresSudo([]*model.AppInfo{&c.app})
+		if got != c.want {
+			t.Errorf("requiresSudo(%s:%s) = %v, want %v", c.app.Source, c.app.Name, got, c.want)
+		}
 	}
 }

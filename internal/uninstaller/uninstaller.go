@@ -29,6 +29,7 @@ type RealCmder struct{}
 func (RealCmder) LookPath(name string) (string, error) { return exec.LookPath(name) }
 func (RealCmder) Run(ctx context.Context, name string, args ...string) error {
 	cmd := exec.CommandContext(ctx, name, args...)
+	cmd.Env = append(os.Environ(), "DEBIAN_FRONTEND=noninteractive")
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("%s: %v: %s", name, err, strings.TrimSpace(string(out)))
@@ -50,9 +51,20 @@ type Uninstaller struct {
 
 // New builds an Uninstaller bound to the real filesystem.
 func New(home string, log *history.Log, protected map[string]bool) *Uninstaller {
+	return NewWithFSAndCmd(afero.NewOsFs(), RealCmder{}, home, log, protected)
+}
+
+// NewWithFSAndCmd builds an Uninstaller with custom FS and Cmder.
+func NewWithFSAndCmd(fs afero.Fs, cmd Cmder, home string, log *history.Log, protected map[string]bool) *Uninstaller {
+	if fs == nil {
+		fs = afero.NewOsFs()
+	}
+	if cmd == nil {
+		cmd = RealCmder{}
+	}
 	return &Uninstaller{
-		FS:        afero.NewOsFs(),
-		Cmd:       RealCmder{},
+		FS:        fs,
+		Cmd:       cmd,
 		Home:      home,
 		Log:       log,
 		Protected: protected,
@@ -67,6 +79,22 @@ type StageResult struct {
 
 // ErrProtected signals a refused deep-clean.
 var ErrProtected = errors.New("protected system component: deep clean refused")
+
+// isSafePath checks that a candidate path is not a critical top-level directory.
+func isSafePath(p, home string) bool {
+	p = filepath.Clean(p)
+	if p == "" || p == "." || p == "/" || p == home {
+		return false
+	}
+	critical := map[string]bool{
+		"/bin": true, "/boot": true, "/dev": true, "/etc": true, "/home": true,
+		"/lib": true, "/lib64": true, "/media": true, "/mnt": true, "/opt": true,
+		"/proc": true, "/root": true, "/run": true, "/sbin": true, "/srv": true,
+		"/sys": true, "/tmp": true, "/usr": true, "/var": true, "/var/log": true,
+		"/usr/bin": true, "/usr/share": true, "/usr/lib": true, "/usr/local": true,
+	}
+	return !critical[p]
+}
 
 // StageRemoval walks candidate config/cache/log/data/residual paths for an
 // app and fills Removable. It never touches disk — pure inspection.
@@ -85,31 +113,48 @@ func (u *Uninstaller) StageRemoval(app *model.AppInfo) error {
 	rem.PackageKB = app.InstallSizeKB
 
 	home := u.Home
-	candidates := []struct {
+	type candidate struct {
 		path     string
 		category *int64
-	}{
-		{filepath.Join(home, ".config", app.Name), &rem.ConfigKB},
-		{filepath.Join(home, ".cache", app.Name), &rem.CacheKB},
-		{filepath.Join(home, ".local", "share", app.Name), &rem.LocalDataKB},
-		{filepath.Join(home, ".local", "state", app.Name), &rem.LocalDataKB},
-		{filepath.Join(home, "."+app.Name), &rem.ResidualKB},
 	}
+
+	var candidates []candidate
+	seen := make(map[string]bool)
+
+	addCandidate := func(p string, cat *int64) {
+		p = filepath.Clean(p)
+		if p == "" || seen[p] || !isSafePath(p, home) {
+			return
+		}
+		seen[p] = true
+		candidates = append(candidates, candidate{path: p, category: cat})
+	}
+
+	// Basic standard locations
+	addCandidate(filepath.Join(home, ".config", app.Name), &rem.ConfigKB)
+	addCandidate(filepath.Join(home, ".cache", app.Name), &rem.CacheKB)
+	addCandidate(filepath.Join(home, ".local", "share", app.Name), &rem.LocalDataKB)
+	addCandidate(filepath.Join(home, ".local", "state", app.Name), &rem.LocalDataKB)
+	addCandidate(filepath.Join(home, "."+app.Name), &rem.ResidualKB)
+
 	for _, extra := range model.HomeCandidates(app.Source, app.Name) {
-		candidates = append(candidates, struct {
-			path     string
-			category *int64
-		}{filepath.Join(home, extra), &rem.LocalDataKB})
+		cat := &rem.LocalDataKB
+		if strings.HasPrefix(extra, ".config") {
+			cat = &rem.ConfigKB
+		} else if strings.HasPrefix(extra, ".cache") {
+			cat = &rem.CacheKB
+		} else if strings.HasPrefix(extra, ".") && !strings.Contains(extra, string(filepath.Separator)) {
+			cat = &rem.ResidualKB
+		}
+		addCandidate(filepath.Join(home, extra), cat)
 	}
+
 	for _, sys := range model.SystemCandidates(app.Name) {
-		candidates = append(candidates, struct {
-			path     string
-			category *int64
-		}{sys, &rem.ResidualKB})
+		addCandidate(sys, &rem.ResidualKB)
 	}
 
 	for _, c := range candidates {
-		exists, err := afero.DirExists(u.FS, c.path)
+		exists, err := afero.Exists(u.FS, c.path)
 		if err != nil || !exists {
 			continue
 		}
@@ -190,9 +235,9 @@ func RemoveCommand(app model.AppInfo, sudo bool) []string {
 	case "zypper":
 		args = append([]string{"zypper", "remove", "-y"}, args...)
 	case "flatpak":
-		return []string{"flatpak", "uninstall", "-y", app.Name}
+		return []string{"flatpak", "uninstall", "--noninteractive", "-y", "--delete-data", app.Name}
 	case "snap":
-		args = append([]string{"snap", "remove"}, args...)
+		args = append([]string{"snap", "remove", "--purge"}, args...)
 	case "npm":
 		return []string{"npm", "uninstall", "-g", app.Name}
 	case "pipx":
@@ -200,16 +245,39 @@ func RemoveCommand(app model.AppInfo, sudo bool) []string {
 	case "cargo":
 		return []string{"cargo", "uninstall", app.Name}
 	case "gem":
-		return []string{"gem", "uninstall", app.Name}
+		return []string{"gem", "uninstall", "-a", "-x", app.Name}
+	case "brew":
+		return []string{"brew", "uninstall", app.Name}
+	case "nix":
+		return []string{"nix-env", "-e", app.Name}
 	case "go":
 		return []string{"rm", "-rf", filepath.Join(gopathBin(), app.Name)}
-	case "cache", "appimage", "system":
+	case "system":
+		if app.Name == "systemd-journal-logs" {
+			if sudo {
+				return []string{"sudo", "journalctl", "--vacuum-time=2d", "--vacuum-size=50M"}
+			}
+			return []string{"journalctl", "--vacuum-time=2d", "--vacuum-size=50M"}
+		}
+		return nil
+	case "cache", "appimage":
 		return nil
 	}
 	if sudo {
 		args = append([]string{"sudo"}, args...)
 	}
 	return args
+}
+
+func isNotFoundErr(s string) bool {
+	s = strings.ToLower(s)
+	return strings.Contains(s, "no installed refs") ||
+		strings.Contains(s, "not installed") ||
+		strings.Contains(s, "target not found") ||
+		strings.Contains(s, "could not find") ||
+		strings.Contains(s, "not found") ||
+		strings.Contains(s, "no package found") ||
+		strings.Contains(s, "no match")
 }
 
 func gopathBin() string {
@@ -249,10 +317,18 @@ func (u *Uninstaller) Remove(ctx context.Context, app *model.AppInfo, onStep fun
 		emit("running: "+strings.Join(cmd, " "), nil)
 		done++
 		if !u.DryRun {
-			if err := u.Cmd.Run(ctx, cmd[0], cmd[1:]...); err != nil {
-				emit("package removal failed", err)
-				u.record(app, 0, 0, false, err.Error())
-				return 0, 0, err
+			if runErr := u.Cmd.Run(ctx, cmd[0], cmd[1:]...); runErr != nil {
+				errStr := strings.ToLower(runErr.Error())
+				if app.Source == "flatpak" && (strings.Contains(errStr, "no installed refs") || strings.Contains(errStr, "not installed")) {
+					_ = u.Cmd.Run(ctx, "flatpak", "uninstall", "--user", "--noninteractive", "-y", app.Name)
+				}
+				if isNotFoundErr(errStr) {
+					emit("package registry: "+strings.TrimSpace(runErr.Error())+" (purging residual files...)", nil)
+				} else {
+					emit("package removal failed: "+runErr.Error(), runErr)
+					u.record(app, 0, 0, false, runErr.Error())
+					return 0, 0, runErr
+				}
 			}
 		}
 		done++
@@ -269,12 +345,13 @@ func (u *Uninstaller) Remove(ctx context.Context, app *model.AppInfo, onStep fun
 			emit("removing: "+p, nil)
 			if !u.DryRun {
 				if err := u.FS.RemoveAll(p); err != nil {
-					emit("remove failed: "+p, err)
-					u.record(app, freedKB, files, false, err.Error())
-					return freedKB, files, err
+					emit("remove warning: "+p+" ("+err.Error()+")", nil)
+				} else {
+					files++
 				}
+			} else {
+				files++
 			}
-			files++
 			done++
 			emit("removed: "+p, nil)
 		}
@@ -284,12 +361,18 @@ func (u *Uninstaller) Remove(ctx context.Context, app *model.AppInfo, onStep fun
 				args := append([]string{"rm", "-rf", "--"}, elevated...)
 				argv := append([]string{"sudo"}, args...)
 				if err := u.Cmd.Run(ctx, argv[0], argv[1:]...); err != nil {
-					emit("elevated removal failed", err)
-					u.record(app, freedKB, files, false, err.Error())
-					return freedKB, files, err
+					emit("elevated warning: "+err.Error(), nil)
+					for _, ep := range elevated {
+						if subErr := u.Cmd.Run(ctx, "sudo", "rm", "-rf", "--", ep); subErr == nil {
+							files++
+						}
+					}
+				} else {
+					files += len(elevated)
 				}
+			} else {
+				files += len(elevated)
 			}
-			files += len(elevated)
 			done += len(elevated)
 		}
 	}
@@ -303,7 +386,7 @@ func (u *Uninstaller) Remove(ctx context.Context, app *model.AppInfo, onStep fun
 func (u *Uninstaller) userPaths(app *model.AppInfo) []string {
 	var out []string
 	for _, p := range app.Removable.Paths {
-		if !u.isUserWritable(p) {
+		if !isSafePath(p, u.Home) || !u.isUserWritable(p) {
 			continue
 		}
 		out = append(out, p)
@@ -314,7 +397,7 @@ func (u *Uninstaller) userPaths(app *model.AppInfo) []string {
 func (u *Uninstaller) elevatedPaths(app *model.AppInfo) []string {
 	var out []string
 	for _, p := range app.Removable.Paths {
-		if u.isUserWritable(p) {
+		if !isSafePath(p, u.Home) || u.isUserWritable(p) {
 			continue
 		}
 		out = append(out, p)

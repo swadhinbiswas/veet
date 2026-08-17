@@ -46,3 +46,19 @@ func TestReadMissingFile(t *testing.T) {
 		t.Fatalf("expected no entries, got %d", len(entries))
 	}
 }
+
+func TestClear(t *testing.T) {
+	fs := afero.NewMemMapFs()
+	l := New(fs, "/log/history.log")
+	_ = l.Append(Entry{Time: time.Now(), App: "foo", Source: "apt", Status: "ok"})
+	if err := l.Clear(); err != nil {
+		t.Fatalf("Clear failed: %v", err)
+	}
+	entries, err := l.Read()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) != 0 {
+		t.Fatalf("expected empty entries after clear, got %d", len(entries))
+	}
+}

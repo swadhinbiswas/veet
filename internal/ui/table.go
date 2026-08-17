@@ -90,23 +90,26 @@ func (a *AppTable) SetApps(apps []*model.AppInfo) {
 }
 
 func (a *AppTable) row(app *model.AppInfo) table.Row {
+	sym := model.GetUISymbols()
 	check := "[ ]"
 	if a.selected[app.Name] {
-		check = "[✓]"
+		check = "[" + sym.Check + "]"
 	}
 	name := app.Name
 	if app.Protected {
-		name = "🛡 " + name
+		name = sym.Shield + " " + name
 	}
 	inst := "-"
 	if !app.InstalledOn.IsZero() {
 		inst = app.InstalledOn.Format("2006-01-02")
 	}
+	meta := model.Meta(app.Source)
+	sourceDisplay := meta.Icon + " " + meta.Label
 	return table.Row{
 		check,
 		name,
 		app.Version,
-		model.Meta(app.Source).Label,
+		sourceDisplay,
 		inst,
 		model.HumanSize(app.InstallSizeKB),
 	}

@@ -17,6 +17,7 @@ func Details(app *model.AppInfo, showPaths bool) string {
 	}
 	var b strings.Builder
 
+	sym := model.GetUISymbols()
 	b.WriteString(Title.Render(app.Name))
 	if app.Version != "" && app.Version != "-" && app.Version != "unknown" {
 		b.WriteString("  " + Muted.Render("v"+app.Version))
@@ -24,7 +25,7 @@ func Details(app *model.AppInfo, showPaths bool) string {
 	b.WriteString("\n")
 	b.WriteString(SourceBadge(app.Source))
 	if app.Protected {
-		b.WriteString("  " + DangerText.Render("🛡 SYSTEM PROTECTED"))
+		b.WriteString("  " + DangerText.Render(sym.Shield+" SYSTEM PROTECTED"))
 	}
 	b.WriteString("\n\n")
 
@@ -47,12 +48,12 @@ func Details(app *model.AppInfo, showPaths bool) string {
 	rem := app.Removable
 	if rem.Staged() {
 		b.WriteString("\n" + HighlightText.Render("WILL BE REMOVED:"))
-		b.WriteString(removeRow("package files", rem.PackageKB))
-		b.WriteString(removeRow("config files", rem.ConfigKB))
-		b.WriteString(removeRow("cache files", rem.CacheKB))
-		b.WriteString(removeRow("log files", rem.LogKB))
-		b.WriteString(removeRow("local data", rem.LocalDataKB))
-		b.WriteString(removeRow("residual files", rem.ResidualKB))
+		b.WriteString(removeRow("package files", rem.PackageKB, sym))
+		b.WriteString(removeRow("config files", rem.ConfigKB, sym))
+		b.WriteString(removeRow("cache files", rem.CacheKB, sym))
+		b.WriteString(removeRow("log files", rem.LogKB, sym))
+		b.WriteString(removeRow("local data", rem.LocalDataKB, sym))
+		b.WriteString(removeRow("residual files", rem.ResidualKB, sym))
 		b.WriteString(fmt.Sprintf("\n\n%-18s %s\n", Muted.Render("total reclaimable"), HighlightText.Render(model.HumanSize(rem.TotalKB()))))
 
 		if showPaths && rem.FileCount() > 0 {
@@ -60,7 +61,7 @@ func Details(app *model.AppInfo, showPaths bool) string {
 			for _, p := range rem.Paths {
 				line := "  " + p
 				if isElevated(p, rem) {
-					line += "  " + DangerText.Render("🔒 requires sudo")
+					line += "  " + DangerText.Render(sym.Sudo+" requires sudo")
 				}
 				b.WriteString("\n" + line)
 			}
@@ -68,25 +69,26 @@ func Details(app *model.AppInfo, showPaths bool) string {
 	} else if app.Source == "cache" {
 		b.WriteString("\n" + Muted.Render("Cache / residual leftover, ready for cleanup."))
 	} else {
-		b.WriteString("\n" + Muted.Render("Press Enter to preview what will be removed."))
+		b.WriteString("\n" + Muted.Render("Enter to preview what will be deleted."))
 	}
 
-	b.WriteString("\n\n" + DangerText.Render("⚠ Removal cannot be undone"))
+	b.WriteString("\n\n" + DangerText.Render(sym.Warning+" Removal cannot be undone"))
 	if !app.Protected {
 		b.WriteString("\n\n" +
-			lipgloss.NewStyle().Bold(true).Foreground(danger).Render("[Enter: Stage Preview]") +
-			"  " + lipgloss.NewStyle().Foreground(primary).Render("[Space: Select]"))
+			DangerText.Render("[Enter: Preview]") + "  " +
+			DangerText.Render("[Enter again: DELETE]") + "  " +
+			lipgloss.NewStyle().Foreground(primary).Render("[Space: Select]"))
 	} else {
 		b.WriteString("\n\n" + DangerText.Render("Deep clean refused for protected system components."))
 	}
 	return b.String()
 }
 
-func removeRow(label string, kb int64) string {
+func removeRow(label string, kb int64, sym model.UISymbols) string {
 	if kb <= 0 {
-		return "\n  ✗ " + Muted.Render(fmt.Sprintf("%-16s %s", label, "0B"))
+		return "\n  " + Muted.Render(sym.Cross+" "+fmt.Sprintf("%-16s %s", label, "0B"))
 	}
-	return "\n  ✓ " + SuccessText.Render(fmt.Sprintf("%-16s", label)) + " " + HighlightText.Render(model.HumanSize(kb))
+	return "\n  " + SuccessText.Render(sym.Check+" ") + HighlightText.Render(fmt.Sprintf("%-16s", label)) + " " + HighlightText.Render(model.HumanSize(kb))
 }
 
 func isElevated(p string, rem model.RemovableFiles) bool {

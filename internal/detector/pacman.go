@@ -57,8 +57,21 @@ func (d *pacmanDetector) Detect(ctx context.Context) ([]model.AppInfo, error) {
 		}
 	}
 
+	allKeys := keysOf(names)
+	if len(allKeys) == 0 {
+		return nil, nil
+	}
+
+	// Try bulk pacman -Qi first (single process, ~50x faster)
+	if bulkInfo, err := Exec(ctx, d.ex, "pacman", "-Qi"); err == nil && strings.Contains(bulkInfo, "Name") {
+		apps := parsePacmanQiBulk(bulkInfo, names, aurSet)
+		if len(apps) > 0 {
+			return apps, nil
+		}
+	}
+
 	sink := &appSink{}
-	workerPool(keysOf(names), 8, func(name string) {
+	workerPool(allKeys, 8, func(name string) {
 		var sizeKB int64
 		var installed string
 		var deps []string
@@ -107,6 +120,70 @@ func (d *pacmanDetector) Detect(ctx context.Context) ([]model.AppInfo, error) {
 		})
 	})
 	return sink.apps, nil
+}
+
+func parsePacmanQiBulk(output string, filterNames map[string]string, aurSet map[string]bool) []model.AppInfo {
+	var apps []model.AppInfo
+	entries := strings.Split(output, "\n\n")
+	for _, entry := range entries {
+		var name, ver, installed, url, maint string
+		var sizeKB int64
+		var deps []string
+		for _, line := range strings.Split(entry, "\n") {
+			key, val, ok := strings.Cut(line, ":")
+			if !ok {
+				continue
+			}
+			key, val = strings.TrimSpace(key), strings.TrimSpace(val)
+			switch key {
+			case "Name":
+				name = val
+			case "Version":
+				ver = val
+			case "Installed Size":
+				sizeKB = parseHumanSize(val)
+			case "Install Date":
+				installed = val
+			case "Depends On":
+				if val != "None" {
+					for _, dep := range strings.Split(val, " ") {
+						if dep != "" {
+							deps = append(deps, dep)
+						}
+					}
+				}
+			case "URL":
+				url = val
+			case "Packager":
+				maint = val
+			}
+		}
+		if name == "" {
+			continue
+		}
+		if _, needed := filterNames[name]; !needed {
+			continue
+		}
+		if ver == "" {
+			ver = filterNames[name]
+		}
+		source := "pacman"
+		if aurSet[name] {
+			source = "aur"
+		}
+		apps = append(apps, model.AppInfo{
+			Name:          name,
+			Version:       ver,
+			Source:        source,
+			InstalledOn:   parseDate(installed),
+			InstallSizeKB: sizeKB,
+			Status:        "Installed",
+			Dependencies:  deps,
+			Maintainer:    maint,
+			Homepage:      url,
+		})
+	}
+	return apps
 }
 
 func keysOf(m map[string]string) []string {

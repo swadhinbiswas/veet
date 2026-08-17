@@ -60,13 +60,14 @@ type card struct {
 
 // RenderStatCards lays out the six cards across the available width with active card indicator.
 func RenderStatCards(s Stats, width int, activeIdx int) string {
+	sym := model.GetUISymbols()
 	cards := []card{
-		{"▣", strconv.Itoa(s.Total), "1: All Apps", Primary},
-		{"◆", strconv.Itoa(s.Flatpak), "2: Flatpak", "#06B6D4"},
-		{"▦", strconv.Itoa(s.Snap), "3: Snap", Danger},
-		{"⚒", strconv.Itoa(s.GlobalTools), "4: Tools", Secondary},
-		{"🧹", model.HumanSize(s.CacheKB), "5: Cache", Highlight},
-		{"♻", model.HumanSize(s.Reclaimable), "6: Reclaim", Highlight},
+		{sym.CardAll, strconv.Itoa(s.Total), "1: All Apps", Primary},
+		{sym.CardFlat, strconv.Itoa(s.Flatpak), "2: Flatpak", "#06B6D4"},
+		{sym.CardSnap, strconv.Itoa(s.Snap), "3: Snap", Danger},
+		{sym.CardTool, strconv.Itoa(s.GlobalTools), "4: Tools", Secondary},
+		{sym.CardCach, model.HumanSize(s.CacheKB), "5: Cache", Highlight},
+		{sym.CardRecl, model.HumanSize(s.Reclaimable), "6: Reclaim", Highlight},
 	}
 	if width < 80 {
 		width = 80
