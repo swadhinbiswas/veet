@@ -2,7 +2,7 @@
 
 <img src="assets/icons/icon.png" alt="VEET Logo" width="130" height="130"/>
 
-# VEET
+
 
 ### Universal Linux Application Uninstaller &amp; Deep-Clean Residual Purger
 
@@ -11,7 +11,7 @@
 [![Go Reference](https://pkg.go.dev/badge/github.com/swadhinbiswas/veet.svg)](https://pkg.go.dev/github.com/swadhinbiswas/veet)
 [![Go Version](https://img.shields.io/badge/Go-1.24+-00ADD8?style=flat-square&logo=go)](https://go.dev)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)](LICENSE)
-[![Platform](https://img.shields.io/badge/Platform-Linux-FCC624?style=flat-square&logo=linux&logoColor=black)](#-technical-overview)
+[![Platform](https://img.shields.io/badge/Platform-Linux-FCC624?style=flat-square&logo=linux&logoColor=black)](#technical-overview)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg?style=flat-square)](CONTRIBUTING.md)
 
 <p align="center">
@@ -20,15 +20,15 @@
 </p>
 
 <p align="center">
-  <a href="#-technical-overview">Overview</a> •
-  <a href="#-comparison-matrix">Comparison</a> •
-  <a href="#-core-capabilities">Capabilities</a> •
-  <a href="#-installation">Installation</a> •
-  <a href="#-usage">Usage</a> •
-  <a href="#-search-syntax">Search Syntax</a> •
-  <a href="#-theming">Themes</a> •
-  <a href="#-keybinding-reference">Keybindings</a> •
-  <a href="#-configuration">Config</a>
+  <a href="#technical-overview">Overview</a> •
+  <a href="#comparison-matrix">Comparison</a> •
+  <a href="#core-capabilities">Capabilities</a> •
+  <a href="#installation">Installation</a> •
+  <a href="#usage">Usage</a> •
+  <a href="#search-syntax">Search Syntax</a> •
+  <a href="#theming">Themes</a> •
+  <a href="#keybinding-reference">Keybindings</a> •
+  <a href="#configuration">Config</a>
 </p>
 
 <br/>
@@ -39,7 +39,7 @@
 
 ---
 
-## ⚡ Technical Overview
+## <img src="assets/icons/overview.svg" alt="" width="22" height="22" align="center" /> Technical Overview
 
 When software is uninstalled using conventional Linux package managers (`pacman -R`, `apt remove`, `dnf remove`, `flatpak uninstall`, `snap remove`), only package-managed system files (`/usr/bin`, `/usr/share`) are modified. User-space and container storage directories remain orphaned on disk:
 
@@ -57,7 +57,7 @@ Over time, unmanaged leftovers consume gigabytes of valuable storage. Modern Lin
 
 ---
 
-## 📊 Comparison Matrix
+## <img src="assets/icons/compare.svg" alt="" width="22" height="22" align="center" /> Comparison Matrix
 
 | Feature | `pacman -R` / `apt` | `flatpak uninstall` | `bleachbit` | `veet` |
 |:---|:---:|:---:|:---:|:---:|
@@ -75,7 +75,7 @@ Over time, unmanaged leftovers consume gigabytes of valuable storage. Modern Lin
 
 ---
 
-## 🌟 Core Capabilities
+## <img src="assets/icons/star.svg" alt="" width="22" height="22" align="center" /> Core Capabilities
 
 <table>
   <tr>
@@ -112,7 +112,7 @@ Over time, unmanaged leftovers consume gigabytes of valuable storage. Modern Lin
 
 ---
 
-## 📥 Installation
+## <img src="assets/icons/install.svg" alt="" width="22" height="22" align="center" /> Installation
 
 ### Option 1: Arch Linux (AUR)
 
@@ -174,7 +174,7 @@ make install
 
 ---
 
-## 🚀 Usage
+## <img src="assets/icons/rocket.svg" alt="" width="22" height="22" align="center" /> Usage
 
 ### Interactive Terminal Dashboard (TUI)
 
@@ -219,7 +219,7 @@ veet history --clear
 
 ---
 
-## 🔍 Search Syntax
+## <img src="assets/icons/search.svg" alt="" width="22" height="22" align="center" /> Search Syntax
 
 Press <kbd>/</kbd> in the TUI to focus the search bar. VEET supports powerful query modifiers:
 
@@ -236,7 +236,7 @@ Press <kbd>/</kbd> in the TUI to focus the search bar. VEET supports powerful qu
 
 ---
 
-## 🎨 Theming
+## <img src="assets/icons/theme.svg" alt="" width="22" height="22" align="center" /> Theming
 
 VEET features **7 hand-crafted color palettes** to seamlessly integrate with your terminal setup. Configure your theme in `~/.config/veet/config.yaml`:
 
@@ -256,7 +256,7 @@ theme: catppuccin  # Options: cyan, catppuccin, nord, dracula, gruvbox, tokyo-ni
 
 ---
 
-## ⌨️ Keybinding Reference
+## <img src="assets/icons/keyboard.svg" alt="" width="22" height="22" align="center" /> Keybinding Reference
 
 <table width="100%">
   <thead>
@@ -347,12 +347,12 @@ theme: catppuccin  # Options: cyan, catppuccin, nord, dracula, gruvbox, tokyo-ni
 
 ---
 
-## ⚙️ Configuration
+## <img src="assets/icons/config.svg" alt="" width="22" height="22" align="center" /> Configuration
 
 <details>
 <summary><b>Custom Configuration (<code>~/.config/veet/config.yaml</code>)</b></summary>
 <br/>
-
+ 
 VEET supports optional user configuration via YAML. Create `~/.config/veet/config.yaml` to customize your visual palette, icon rendering mode, and register protected components:
 
 ```yaml
@@ -399,7 +399,7 @@ veet/
 
 ---
 
-## 🗑️ Uninstallation
+## <img src="assets/icons/trash.svg" alt="" width="22" height="22" align="center" /> Uninstallation
 
 ### From Cloned Source Repository
 ```bash
@@ -422,12 +422,12 @@ rm -rf ~/.local/share/veet ~/.config/veet
 
 ---
 
-## 🤝 Contributing
+## <img src="assets/icons/contribute.svg" alt="" width="22" height="22" align="center" /> Contributing
 
 Contributions are welcome! Please refer to [CONTRIBUTING.md](CONTRIBUTING.md) for local development setup, detector implementation guides, and testing protocols.
 
 ---
 
-## 📄 License
+## <img src="assets/icons/license.svg" alt="" width="22" height="22" align="center" /> License
 
 VEET is open-source software licensed under the [MIT License](LICENSE).

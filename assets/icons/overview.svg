@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="20" height="20" fill="none">
+  <defs>
+    <linearGradient id="overGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FBBF24" />
+      <stop offset="100%" stop-color="#F59E0B" />
+    </linearGradient>
+  </defs>
+  <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" stroke="url(#overGrad)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
