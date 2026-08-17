@@ -55,9 +55,14 @@ if [ -f "$SCRIPT_DIR/main.go" ] && [ -f "$SCRIPT_DIR/go.mod" ]; then
     SRC_DIR="$SCRIPT_DIR"
     printf "${GREEN}✓${NC} Installing from local source: ${BOLD}%s${NC}\n" "$SRC_DIR"
 else
-    printf "${YELLOW}•${NC} Fetching latest VEET repository...\n"
+    VEET_REF="${VEET_VERSION:-main}"
+    printf "${YELLOW}•${NC} Fetching VEET repository (${CYAN}%s${NC})...\n" "$VEET_REF"
     TMP_BUILD=$(mktemp -d)
-    git clone --depth 1 https://github.com/swadhinbiswas/veet.git "$TMP_BUILD"
+    if [ "$VEET_REF" = "main" ]; then
+        git clone --depth 1 https://github.com/swadhinbiswas/veet.git "$TMP_BUILD"
+    else
+        git clone --depth 1 --branch "$VEET_REF" https://github.com/swadhinbiswas/veet.git "$TMP_BUILD"
+    fi
     SRC_DIR="$TMP_BUILD"
 fi
 
@@ -119,8 +124,10 @@ if [ "$HAS_NERD" = false ]; then
 
     if [ ! -f "$FONT_FILE" ] || [ ! -f "$FONT_MONO" ]; then
         printf "${YELLOW}•${NC} Downloading official Nerd Font Symbols into ${BOLD}%s${NC}...\n" "$FONT_DIR"
-        FONT_URL="https://github.com/ryanoasis/nerd-fonts/raw/HEAD/patched-fonts/NerdFontsSymbolsOnly/SymbolsNerdFont-Regular.ttf"
-        FONT_MONO_URL="https://github.com/ryanoasis/nerd-fonts/raw/HEAD/patched-fonts/NerdFontsSymbolsOnly/SymbolsNerdFontMono-Regular.ttf"
+        FONT_URL="https://github.com/ryanoasis/nerd-fonts/raw/v3.3.0/patched-fonts/NerdFontsSymbolsOnly/SymbolsNerdFont-Regular.ttf"
+        FONT_MONO_URL="https://github.com/ryanoasis/nerd-fonts/raw/v3.3.0/patched-fonts/NerdFontsSymbolsOnly/SymbolsNerdFontMono-Regular.ttf"
+        FONT_HASH="d7cda3a97797a3764b80a8df8b54f2bd7229a12cbc75c9c74f31496866c6eee9"
+        FONT_MONO_HASH="7f14415832a929155c3d6d1c7d404fae00dfbfe4f1b29940e3736e6e790e3312"
         
         FONT_FILE_TMP="${FONT_FILE}.tmp.$$"
         FONT_MONO_TMP="${FONT_MONO}.tmp.$$"
@@ -136,13 +143,23 @@ if [ "$HAS_NERD" = false ]; then
             fi
         fi
 
-        if [ "$DOWNLOADED" = true ] && [ -s "$FONT_FILE_TMP" ] && [ -s "$FONT_MONO_TMP" ]; then
+        # Verify SHA256 checksums if sha256sum utility is available
+        VALID_CHECKSUM=true
+        if [ "$DOWNLOADED" = true ] && command -v sha256sum >/dev/null 2>&1; then
+            CALC_HASH=$(sha256sum "$FONT_FILE_TMP" | awk '{print $1}')
+            CALC_MONO_HASH=$(sha256sum "$FONT_MONO_TMP" | awk '{print $1}')
+            if [ "$CALC_HASH" != "$FONT_HASH" ] || [ "$CALC_MONO_HASH" != "$FONT_MONO_HASH" ]; then
+                VALID_CHECKSUM=false
+            fi
+        fi
+
+        if [ "$DOWNLOADED" = true ] && [ "$VALID_CHECKSUM" = true ] && [ -s "$FONT_FILE_TMP" ] && [ -s "$FONT_MONO_TMP" ]; then
             mv -f "$FONT_FILE_TMP" "$FONT_FILE"
             mv -f "$FONT_MONO_TMP" "$FONT_MONO"
             if command -v fc-cache >/dev/null 2>&1; then
                 fc-cache -f "$FONT_DIR" 2>/dev/null || true
             fi
-            printf "${GREEN}✓${NC} Installed Nerd Font Symbols fallback font.\n"
+            printf "${GREEN}✓${NC} Installed Nerd Font Symbols fallback font (v3.3.0).\n"
         else
             rm -f "$FONT_FILE_TMP" "$FONT_MONO_TMP"
             printf "${YELLOW}• Note:${NC} Could not auto-download font. VEET will use universal Unicode fallback (${CYAN}icons: auto${NC}).\n"

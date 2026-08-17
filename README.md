@@ -136,7 +136,11 @@ yay -S veet-git
 Downloads, compiles with binary optimizations (`-ldflags="-s -w"`), installs to `~/.local/bin/veet`, and configures shell autocompletions:
 
 ```bash
+# Install latest release
 curl -sSL https://raw.githubusercontent.com/swadhinbiswas/veet/main/install.sh | bash
+
+# Or install a specific pinned release tag (e.g. v1.1.0)
+curl -sSL https://raw.githubusercontent.com/swadhinbiswas/veet/v1.1.0/install.sh | VEET_VERSION=v1.1.0 bash
 ```
 
 *Or from a local clone:*
