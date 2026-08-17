@@ -96,6 +96,21 @@ func TestCandidates(t *testing.T) {
 	if len(sysC) < 3 {
 		t.Fatalf("expected at least 3 system candidates, got %d", len(sysC))
 	}
+
+	// Verify SystemCandidates avoids unsafe hyphen/domain sub-segments
+	chromeSys := SystemCandidates("google-chrome")
+	for _, c := range chromeSys {
+		if c == "/etc/google" || c == "/usr/share/google" || c == "/var/lib/google" {
+			t.Fatalf("SystemCandidates contained unsafe sub-segment path: %s", c)
+		}
+	}
+
+	vlcSys := SystemCandidates("org.videolan.VLC")
+	for _, c := range vlcSys {
+		if c == "/etc/videolan" || c == "/etc/org" {
+			t.Fatalf("SystemCandidates contained unsafe intermediate domain path: %s", c)
+		}
+	}
 }
 
 func TestHumanSizeUnits(t *testing.T) {

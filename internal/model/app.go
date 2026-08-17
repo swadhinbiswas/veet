@@ -383,6 +383,8 @@ func HomeCandidates(source string, name string) []string {
 }
 
 // SystemCandidates are root-owned locations probed during staging.
+// Uses only the original full name and primary reverse-domain forms to avoid
+// matching broader system namespaces (e.g. /etc/google, /usr/share/gnome).
 func SystemCandidates(name string) []string {
 	var candidates []string
 	seen := make(map[string]bool)
@@ -393,8 +395,27 @@ func SystemCandidates(name string) []string {
 		}
 	}
 
-	variants := NameVariants(name)
-	for _, v := range variants {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return nil
+	}
+
+	sysNames := []string{name}
+	if lower := strings.ToLower(name); lower != name {
+		sysNames = append(sysNames, lower)
+	}
+	if strings.Contains(name, ".") {
+		parts := strings.Split(name, ".")
+		last := parts[len(parts)-1]
+		if len(last) >= 2 {
+			sysNames = append(sysNames, last)
+			if lowerLast := strings.ToLower(last); lowerLast != last {
+				sysNames = append(sysNames, lowerLast)
+			}
+		}
+	}
+
+	for _, v := range sysNames {
 		add(filepath.Join("/etc", v))
 		add(filepath.Join("/var/log", v))
 		add(filepath.Join("/var/cache", v))
