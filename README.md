@@ -33,7 +33,7 @@
 
 <br/>
 
-<img src="assets/screenshot.png" alt="VEET Terminal User Interface" width="900"/>
+<img src="https://raw.githubusercontent.com/swadhinbiswas/veet/refs/heads/main/veet3.gif" alt="VEET Terminal User Interface" width="900"/>
 
 </div>
 
